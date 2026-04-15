@@ -13,7 +13,8 @@ import { perf } from "../utils/perf.js";
 
 const PROPOSED_PLAN_PATTERN = /<proposed_plan>\s*([\s\S]*?)\s*<\/proposed_plan>/;
 const PLAN_APPROVAL_PREFIX = "PLEASE IMPLEMENT THIS PLAN";
-const SUBAGENT_NOTIFICATION_PATTERN = /<subagent_notification>\s*([\s\S]*?)\s*<\/subagent_notification>/;
+const SUBAGENT_NOTIFICATION_PATTERN =
+  /<subagent_notification>\s*([\s\S]*?)\s*<\/subagent_notification>/;
 
 const DEVELOPER_LIKE_USER_MARKERS = [
   "agents.md instructions for",
@@ -87,7 +88,11 @@ function mapToolTitle(name: string): string {
 
 function normalizeToolArguments(raw: unknown): unknown {
   if (typeof raw === "string") {
-    try { return JSON.parse(raw); } catch { return raw; }
+    try {
+      return JSON.parse(raw);
+    } catch {
+      return raw;
+    }
   }
   return raw;
 }
@@ -168,7 +173,12 @@ function parseApplyPatchInput(input: unknown): PatchBlock[] {
           if (moveToTarget) {
             const content = extractPatchContent(lines, contentStart);
             i = content.nextLineIndex;
-            blocks.push({ type: "move_file", path: filePath, targetPath: moveToTarget, content: content.text });
+            blocks.push({
+              type: "move_file",
+              path: filePath,
+              targetPath: moveToTarget,
+              content: content.text,
+            });
           } else {
             const content = extractPatchContent(lines, i);
             i = content.nextLineIndex;
@@ -188,7 +198,10 @@ function parseApplyPatchInput(input: unknown): PatchBlock[] {
   return blocks;
 }
 
-function extractPatchContent(lines: string[], startIndex: number): { text: string; nextLineIndex: number } {
+function extractPatchContent(
+  lines: string[],
+  startIndex: number,
+): { text: string; nextLineIndex: number } {
   const contentLines: string[] = [];
   let i = startIndex;
   while (i < lines.length) {
@@ -350,7 +363,7 @@ export class CodexAgent extends BaseAgent {
   incrementalScan(cachedSessions: SessionHead[], changedIds: string[]): SessionHead[] {
     if (!this.basePath) return cachedSessions;
 
-    const sessionMap = new Map(cachedSessions.map(s => [s.id, s]));
+    const sessionMap = new Map(cachedSessions.map((s) => [s.id, s]));
 
     // 重新扫描变更的会话
     for (const file of this.listRolloutFiles()) {
@@ -426,8 +439,13 @@ export class CodexAgent extends BaseAgent {
     for (const record of parseJsonlLines(content)) {
       try {
         const result = this.convertRecord(
-          record, messages, pendingToolCalls, meta.id,
-          currentAssistantIndex, latestAssistantTextIndex, pendingPlan,
+          record,
+          messages,
+          pendingToolCalls,
+          meta.id,
+          currentAssistantIndex,
+          latestAssistantTextIndex,
+          pendingPlan,
         );
         currentAssistantIndex = result.currentAssistantIndex;
         latestAssistantTextIndex = result.latestAssistantTextIndex;
@@ -695,29 +713,38 @@ export class CodexAgent extends BaseAgent {
         const role = String(payload["role"] ?? "");
         if (role === "assistant") {
           return this.convertAssistantMessage(
-            payload, messages, timestampMs,
-            currentAssistantIndex, latestAssistantTextIndex, pendingPlan,
+            payload,
+            messages,
+            timestampMs,
+            currentAssistantIndex,
+            latestAssistantTextIndex,
+            pendingPlan,
           );
         }
         if (role === "user") {
           return this.convertUserMessage(
-            payload, messages, timestampMs,
-            currentAssistantIndex, latestAssistantTextIndex, pendingPlan,
+            payload,
+            messages,
+            timestampMs,
+            currentAssistantIndex,
+            latestAssistantTextIndex,
+            pendingPlan,
           );
         }
         break;
       }
 
       case "reasoning":
-        return this.convertReasoning(
-          payload, messages, timestampMs,
-          currentAssistantIndex,
-        );
+        return this.convertReasoning(payload, messages, timestampMs, currentAssistantIndex);
 
       case "function_call":
         return this.convertFunctionCall(
-          payload, messages, pendingToolCalls, timestampMs,
-          currentAssistantIndex, latestAssistantTextIndex,
+          payload,
+          messages,
+          pendingToolCalls,
+          timestampMs,
+          currentAssistantIndex,
+          latestAssistantTextIndex,
         );
 
       case "function_call_output":
@@ -726,8 +753,12 @@ export class CodexAgent extends BaseAgent {
 
       case "custom_tool_call":
         return this.convertCustomToolCall(
-          payload, messages, pendingToolCalls, timestampMs,
-          currentAssistantIndex, latestAssistantTextIndex,
+          payload,
+          messages,
+          pendingToolCalls,
+          timestampMs,
+          currentAssistantIndex,
+          latestAssistantTextIndex,
         );
 
       case "custom_tool_call_output":
@@ -806,10 +837,15 @@ export class CodexAgent extends BaseAgent {
       }
     }
 
-    messages.push(this.buildMessage({
-      messageId: "", role: "assistant", timestampMs,
-      parts: [textPart], agent: "codex",
-    }));
+    messages.push(
+      this.buildMessage({
+        messageId: "",
+        role: "assistant",
+        timestampMs,
+        parts: [textPart],
+        agent: "codex",
+      }),
+    );
     currentAssistantIndex = messages.length - 1;
     latestAssistantTextIndex = currentAssistantIndex;
 
@@ -832,7 +868,13 @@ export class CodexAgent extends BaseAgent {
   } {
     const content = payload["content"];
     const text = Array.isArray(content)
-      ? content.map((c) => typeof c === "object" && c !== null ? String((c as Record<string, unknown>)["text"] ?? "") : String(c ?? "")).join(" ")
+      ? content
+          .map((c) =>
+            typeof c === "object" && c !== null
+              ? String((c as Record<string, unknown>)["text"] ?? "")
+              : String(c ?? ""),
+          )
+          .join(" ")
       : String(content ?? "");
 
     if (!text.trim()) {
@@ -853,10 +895,14 @@ export class CodexAgent extends BaseAgent {
       pendingPlan = null;
 
       // The approval message itself is a user message
-      messages.push(this.buildMessage({
-        messageId: "", role: "user", timestampMs,
-        parts: [{ type: "text", text: text.trim(), time_created: timestampMs }],
-      }));
+      messages.push(
+        this.buildMessage({
+          messageId: "",
+          role: "user",
+          timestampMs,
+          parts: [{ type: "text", text: text.trim(), time_created: timestampMs }],
+        }),
+      );
 
       currentAssistantIndex = null;
       latestAssistantTextIndex = null;
@@ -873,15 +919,23 @@ export class CodexAgent extends BaseAgent {
         const completedText = String(notifPayload["completed"] ?? "");
 
         // Convert user message with subagent notification to assistant message
-        const textPart: MessagePart = { type: "text", text: completedText || `Subagent ${nickname} completed`, time_created: timestampMs };
+        const textPart: MessagePart = {
+          type: "text",
+          text: completedText || `Subagent ${nickname} completed`,
+          time_created: timestampMs,
+        };
 
-        messages.push(this.buildMessage({
-          messageId: "", role: "assistant", timestampMs,
-          parts: [textPart],
-          agent: "codex",
-          subagent_id: agentId || undefined,
-          nickname: nickname || undefined,
-        }));
+        messages.push(
+          this.buildMessage({
+            messageId: "",
+            role: "assistant",
+            timestampMs,
+            parts: [textPart],
+            agent: "codex",
+            subagent_id: agentId || undefined,
+            nickname: nickname || undefined,
+          }),
+        );
 
         currentAssistantIndex = null;
         latestAssistantTextIndex = null;
@@ -892,10 +946,14 @@ export class CodexAgent extends BaseAgent {
     }
 
     // Normal user message
-    messages.push(this.buildMessage({
-      messageId: "", role: "user", timestampMs,
-      parts: [{ type: "text", text: text.trim(), time_created: timestampMs }],
-    }));
+    messages.push(
+      this.buildMessage({
+        messageId: "",
+        role: "user",
+        timestampMs,
+        parts: [{ type: "text", text: text.trim(), time_created: timestampMs }],
+      }),
+    );
 
     currentAssistantIndex = null;
     latestAssistantTextIndex = null;
@@ -947,12 +1005,21 @@ export class CodexAgent extends BaseAgent {
       }
     }
 
-    messages.push(this.buildMessage({
-      messageId: "", role: "assistant", timestampMs,
-      parts: [part], agent: "codex",
-    }));
+    messages.push(
+      this.buildMessage({
+        messageId: "",
+        role: "assistant",
+        timestampMs,
+        parts: [part],
+        agent: "codex",
+      }),
+    );
 
-    return { currentAssistantIndex: messages.length - 1, latestAssistantTextIndex: null, pendingPlan: null };
+    return {
+      currentAssistantIndex: messages.length - 1,
+      latestAssistantTextIndex: null,
+      pendingPlan: null,
+    };
   }
 
   // ---- Function call ----
@@ -1000,14 +1067,24 @@ export class CodexAgent extends BaseAgent {
       if (callId) {
         pendingToolCalls.set(callId, [targetIndex, partIndex]);
       }
-      return { currentAssistantIndex: targetIndex, latestAssistantTextIndex: targetIndex, pendingPlan: null };
+      return {
+        currentAssistantIndex: targetIndex,
+        latestAssistantTextIndex: targetIndex,
+        pendingPlan: null,
+      };
     }
 
     // Fallback: create new assistant message for tool
-    messages.push(this.buildMessage({
-      messageId: "", role: "assistant", timestampMs,
-      parts: [toolPart], agent: "codex", mode: "tool",
-    }));
+    messages.push(
+      this.buildMessage({
+        messageId: "",
+        role: "assistant",
+        timestampMs,
+        parts: [toolPart],
+        agent: "codex",
+        mode: "tool",
+      }),
+    );
     const newIndex = messages.length - 1;
     if (callId) {
       pendingToolCalls.set(callId, [newIndex, 0]);
@@ -1036,7 +1113,9 @@ export class CodexAgent extends BaseAgent {
       : [];
 
     const [msgIndex, partIndex] = location;
-    const state = messages[msgIndex]!.parts[partIndex]!.state ?? (messages[msgIndex]!.parts[partIndex]!.state = {});
+    const state =
+      messages[msgIndex]!.parts[partIndex]!.state ??
+      (messages[msgIndex]!.parts[partIndex]!.state = {});
 
     if (outputParts.length > 0) {
       state.output = [...outputParts];
@@ -1090,14 +1169,24 @@ export class CodexAgent extends BaseAgent {
       if (callId) {
         pendingToolCalls.set(callId, [targetIndex, partIndex]);
       }
-      return { currentAssistantIndex: targetIndex, latestAssistantTextIndex: targetIndex, pendingPlan: null };
+      return {
+        currentAssistantIndex: targetIndex,
+        latestAssistantTextIndex: targetIndex,
+        pendingPlan: null,
+      };
     }
 
     // Fallback: create new assistant message
-    messages.push(this.buildMessage({
-      messageId: "", role: "assistant", timestampMs,
-      parts: [toolPart], agent: "codex", mode: "tool",
-    }));
+    messages.push(
+      this.buildMessage({
+        messageId: "",
+        role: "assistant",
+        timestampMs,
+        parts: [toolPart],
+        agent: "codex",
+        mode: "tool",
+      }),
+    );
     const newIndex = messages.length - 1;
     if (callId) {
       pendingToolCalls.set(callId, [newIndex, 0]);
@@ -1126,7 +1215,9 @@ export class CodexAgent extends BaseAgent {
       : [];
 
     const [msgIndex, partIndex] = location;
-    const state = messages[msgIndex]!.parts[partIndex]!.state ?? (messages[msgIndex]!.parts[partIndex]!.state = {});
+    const state =
+      messages[msgIndex]!.parts[partIndex]!.state ??
+      (messages[msgIndex]!.parts[partIndex]!.state = {});
 
     if (outputParts.length > 0) {
       state.output = [...outputParts];
@@ -1137,10 +1228,18 @@ export class CodexAgent extends BaseAgent {
   // ---- Message builder ----
 
   private buildMessage(opts: {
-    messageId: string; role: string; timestampMs: number; parts: MessagePart[];
-    agent?: string; mode?: string; model?: string | null; provider?: string | null;
-    tokens?: Record<string, unknown>; cost?: number;
-    subagent_id?: string; nickname?: string;
+    messageId: string;
+    role: string;
+    timestampMs: number;
+    parts: MessagePart[];
+    agent?: string;
+    mode?: string;
+    model?: string | null;
+    provider?: string | null;
+    tokens?: Record<string, unknown>;
+    cost?: number;
+    subagent_id?: string;
+    nickname?: string;
   }): Message {
     return {
       id: opts.messageId,

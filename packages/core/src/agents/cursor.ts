@@ -92,7 +92,6 @@ interface ActionEntry {
   [key: string]: unknown;
 }
 
-
 // ---------------------------------------------------------------------------
 // Helpers
 // ---------------------------------------------------------------------------
@@ -124,9 +123,7 @@ function normalizeToolOutputParts(output: unknown, timestampMs: number): Message
     for (const item of output) {
       if (typeof item === "object" && item !== null) {
         const text = String(
-          (item as Record<string, unknown>).text ??
-          (item as Record<string, unknown>).content ??
-          "",
+          (item as Record<string, unknown>).text ?? (item as Record<string, unknown>).content ?? "",
         );
         if (text.trim()) parts.push({ type: "text", text, time_created: timestampMs });
       } else if (typeof item === "string" && item.trim()) {
@@ -138,9 +135,7 @@ function normalizeToolOutputParts(output: unknown, timestampMs: number): Message
 
   // For object output, stringify for readability
   const text = String(output);
-  return text.trim()
-    ? [{ type: "text", text, time_created: timestampMs }]
-    : [];
+  return text.trim() ? [{ type: "text", text, time_created: timestampMs }] : [];
 }
 
 /** Extract a timestamp (in ms) from a chat message */
@@ -215,9 +210,10 @@ function buildTerminalToolPart(action: ActionEntry, timestampMs: number): Messag
     title: description || `bash: ${command.slice(0, 60)}`,
     state: {
       input: { command },
-      output: typeof action.output === "string"
-        ? [{ type: "text" as const, text: action.output, time_created: timestampMs }]
-        : normalizeToolOutputParts(action.output, timestampMs),
+      output:
+        typeof action.output === "string"
+          ? [{ type: "text" as const, text: action.output, time_created: timestampMs }]
+          : normalizeToolOutputParts(action.output, timestampMs),
     },
     time_created: timestampMs,
   };
@@ -416,9 +412,13 @@ export class CursorAgent extends BaseAgent {
           // Cache with sessionId (requestId) as key
           this.composerCache.set(sessionId, composer);
           // Also cache composerId -> sessionId mapping and directory
-          this.composerCache.set(`__mapping__${composerId}`, { sessionId } as unknown as ComposerData);
+          this.composerCache.set(`__mapping__${composerId}`, {
+            sessionId,
+          } as unknown as ComposerData);
           if (directory) {
-            this.composerCache.set(`__dir__${composerId}`, { directory } as unknown as ComposerData);
+            this.composerCache.set(`__dir__${composerId}`, {
+              directory,
+            } as unknown as ComposerData);
           }
 
           // Store session metadata for caching
@@ -467,7 +467,7 @@ export class CursorAgent extends BaseAgent {
 
       // 如果数据库有变更，标记所有缓存会话需要刷新
       // 因为 SQLite 内部变更检测较复杂，简单起见全部刷新
-      const changedIds = hasChanges ? cachedSessions.map(s => s.id) : [];
+      const changedIds = hasChanges ? cachedSessions.map((s) => s.id) : [];
 
       return {
         hasChanges,
@@ -482,7 +482,7 @@ export class CursorAgent extends BaseAgent {
   /**
    * 增量扫描 - 重新查询数据库
    */
-  incrementalScan(cachedSessions: SessionHead[], _changedIds: string[]): SessionHead[] {
+  incrementalScan(_cachedSessions: SessionHead[], _changedIds: string[]): SessionHead[] {
     // 对于 Cursor，直接重新执行完整扫描
     // 因为 scan() 方法已经做了很好的优化
     return this.scan();
@@ -642,7 +642,11 @@ export class CursorAgent extends BaseAgent {
       return composer.title.trim();
     }
     if (composer.text && typeof composer.text === "string" && composer.text.trim()) {
-      const firstLine = composer.text.split("\n").find((l) => l.trim())?.trim().slice(0, 80);
+      const firstLine = composer.text
+        .split("\n")
+        .find((l) => l.trim())
+        ?.trim()
+        .slice(0, 80);
       if (firstLine) return firstLine;
     }
     const composerId = composer.composerId || composer.id || "";
@@ -675,7 +679,11 @@ export class CursorAgent extends BaseAgent {
   }
 
   /** Load messages from bubbles (like agent-dump) */
-  private loadMessagesFromBubbles(db: SQLiteDatabase, composerId: string, _sessionId: string): Message[] {
+  private loadMessagesFromBubbles(
+    db: SQLiteDatabase,
+    composerId: string,
+    _sessionId: string,
+  ): Message[] {
     const messages: Message[] = [];
 
     try {
@@ -760,7 +768,10 @@ export class CursorAgent extends BaseAgent {
   }
 
   /** Convert toolFormerData to MessagePart */
-  private convertToolFormerData(toolData: BubbleData["toolFormerData"], timestampMs: number): MessagePart | null {
+  private convertToolFormerData(
+    toolData: BubbleData["toolFormerData"],
+    timestampMs: number,
+  ): MessagePart | null {
     if (!toolData || !toolData.name) return null;
 
     const toolName = toolData.name;
@@ -804,9 +815,10 @@ export class CursorAgent extends BaseAgent {
 
     // Handle plan tool specially
     if (toolName === "create_plan") {
-      const planText = typeof state.input === "object" && state.input !== null
-        ? (state.input as Record<string, unknown>).plan
-        : undefined;
+      const planText =
+        typeof state.input === "object" && state.input !== null
+          ? (state.input as Record<string, unknown>).plan
+          : undefined;
       return {
         type: "plan",
         title: "Plan",

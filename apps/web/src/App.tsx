@@ -5,7 +5,11 @@ import type { AgentInfo, SessionHead, SessionData } from "./lib/api";
 import { fetchAgents, fetchSessions, fetchSessionData } from "./lib/api";
 import { SessionDetail } from "./components/SessionDetail";
 import { SessionDetailSkeleton } from "./components/SessionDetailSkeleton";
-import { DetailLanding, type LandingSession, type LandingAgentItem } from "./components/DetailLanding";
+import {
+  DetailLanding,
+  type LandingSession,
+  type LandingAgentItem,
+} from "./components/DetailLanding";
 import { ErrorBoundary } from "./components/ErrorBoundary";
 
 type ViewState =
@@ -13,13 +17,21 @@ type ViewState =
   | { mode: "agent"; activeAgentKey: string; activeSessionSlug: null }
   | { mode: "session"; activeAgentKey: string; activeSessionSlug: string }
   | { mode: "missingAgent"; activeAgentKey: null; activeSessionSlug: null; attemptedKey: string }
-  | { mode: "missingSession"; activeAgentKey: string; activeSessionSlug: string; attemptedSessionSlug: string }
+  | {
+      mode: "missingSession";
+      activeAgentKey: string;
+      activeSessionSlug: string;
+      attemptedSessionSlug: string;
+    }
   | { mode: "invalidRoute"; activeAgentKey: null; activeSessionSlug: null };
 
 function parseViewState(pathname: string, validAgentKeys: Set<string>): ViewState {
   const trimmed = pathname.replace(/^\/+|\/+$/g, "");
   const segments = trimmed
-    ? trimmed.split("/").map((s) => s.trim()).filter(Boolean)
+    ? trimmed
+        .split("/")
+        .map((s) => s.trim())
+        .filter(Boolean)
     : [];
 
   if (segments.length === 0) {
@@ -30,7 +42,12 @@ function parseViewState(pathname: string, validAgentKeys: Set<string>): ViewStat
     if (validAgentKeys.has(key)) {
       return { mode: "agent", activeAgentKey: key, activeSessionSlug: null };
     }
-    return { mode: "missingAgent", activeAgentKey: null, activeSessionSlug: null, attemptedKey: key };
+    return {
+      mode: "missingAgent",
+      activeAgentKey: null,
+      activeSessionSlug: null,
+      attemptedKey: key,
+    };
   }
   if (segments.length === 2) {
     const key = segments[0]!.toLowerCase();
@@ -39,9 +56,19 @@ function parseViewState(pathname: string, validAgentKeys: Set<string>): ViewStat
       return { mode: "session", activeAgentKey: key, activeSessionSlug: slug };
     }
     if (validAgentKeys.has(key)) {
-      return { mode: "missingSession", activeAgentKey: key, activeSessionSlug: slug, attemptedSessionSlug: slug };
+      return {
+        mode: "missingSession",
+        activeAgentKey: key,
+        activeSessionSlug: slug,
+        attemptedSessionSlug: slug,
+      };
     }
-    return { mode: "missingAgent", activeAgentKey: null, activeSessionSlug: null, attemptedKey: key };
+    return {
+      mode: "missingAgent",
+      activeAgentKey: null,
+      activeSessionSlug: null,
+      attemptedKey: key,
+    };
   }
   return { mode: "invalidRoute", activeAgentKey: null, activeSessionSlug: null };
 }
@@ -74,10 +101,7 @@ export default function App() {
     const ac = new AbortController();
     (async () => {
       try {
-        const [agentList, sessionList] = await Promise.all([
-          fetchAgents(),
-          fetchSessions(),
-        ]);
+        const [agentList, sessionList] = await Promise.all([fetchAgents(), fetchSessions()]);
         setAgents(agentList);
         setSessions(sessionList.sessions);
       } catch (err) {
@@ -91,10 +115,7 @@ export default function App() {
   }, []);
 
   const location = useLocation();
-  const validAgentKeys = useMemo(
-    () => new Set(agents.map((a) => a.name.toLowerCase())),
-    [agents],
-  );
+  const validAgentKeys = useMemo(() => new Set(agents.map((a) => a.name.toLowerCase())), [agents]);
 
   const viewState = useMemo(
     () => parseViewState(location.pathname, validAgentKeys),
@@ -121,7 +142,10 @@ export default function App() {
   }, [sessions, agents]);
 
   const activeAgentKey = viewState.activeAgentKey;
-  const sidebarSessions = activeAgentKey ? sessionsByAgent[activeAgentKey] ?? [] : [];
+  const sidebarSessions = useMemo(
+    () => (activeAgentKey ? (sessionsByAgent[activeAgentKey] ?? []) : []),
+    [activeAgentKey, sessionsByAgent],
+  );
 
   // Group sidebar sessions by last cwd component (file-tree style)
   type SessionGroup = { key: string; label: string; sessions: typeof sidebarSessions };
@@ -129,9 +153,7 @@ export default function App() {
     const map = new Map<string, SessionGroup>();
     for (const s of sidebarSessions) {
       const dir = s.directory ?? "";
-      const label = dir
-        ? dir.replace(/\/+$/, "").split("/").at(-1) ?? dir
-        : "(unknown)";
+      const label = dir ? (dir.replace(/\/+$/, "").split("/").at(-1) ?? dir) : "(unknown)";
       const groupKey = label !== "(unknown)" ? label : "__unknown__";
       if (!map.has(groupKey)) map.set(groupKey, { key: groupKey, label, sessions: [] });
       map.get(groupKey)!.sessions.push(s);
@@ -156,10 +178,17 @@ export default function App() {
   function toggleGroup(key: string) {
     setExpandedGroups((prev) => {
       const next = new Set(prev);
-      if (next.has(key)) next.delete(key); else next.add(key);
+      if (next.has(key)) next.delete(key);
+      else next.add(key);
       return next;
     });
   }
+
+  // Stable key for session fetch
+  const sessionFetchKey =
+    viewState.mode === "session"
+      ? `${viewState.activeAgentKey}/${viewState.activeSessionSlug}`
+      : "";
 
   // Load session detail
   useEffect(() => {
@@ -183,7 +212,7 @@ export default function App() {
       }
     })();
     return () => ac.abort();
-  }, [viewState.mode === "session" ? `${viewState.activeAgentKey}/${viewState.activeSessionSlug}` : ""]);
+  }, [sessionFetchKey, viewState.activeAgentKey, viewState.activeSessionSlug, viewState.mode]);
 
   // Build landing data
   const landingSessions = useMemo<LandingSession[]>(() => {
@@ -248,11 +277,7 @@ export default function App() {
     );
   } else if (viewState.mode === "root") {
     content = (
-      <DetailLanding
-        type="global"
-        sessions={landingSessions}
-        agentItems={landingAgentItems}
-      />
+      <DetailLanding type="global" sessions={landingSessions} agentItems={landingAgentItems} />
     );
   } else if (viewState.mode === "agent" && activeAgentKey) {
     const agentSessions = landingSessions.filter((s) => s.agentKey === activeAgentKey);
@@ -332,7 +357,11 @@ export default function App() {
                         }`}
                       >
                         {config?.icon && (
-                          <img src={config.icon} alt={agent.displayName} className="size-3.5 object-contain" />
+                          <img
+                            src={config.icon}
+                            alt={agent.displayName}
+                            className="size-3.5 object-contain"
+                          />
                         )}
                         <span className="console-mono line-clamp-1 flex-1 text-xs">
                           {agent.displayName}
@@ -380,7 +409,9 @@ export default function App() {
                         >
                           <span className="shrink-0 text-[10px]">{isExpanded ? "▼" : "▶"}</span>
                           <span className="line-clamp-1 font-semibold">{group.label}</span>
-                          <span className="ml-auto shrink-0 text-[11px]">{group.sessions.length}</span>
+                          <span className="ml-auto shrink-0 text-[11px]">
+                            {group.sessions.length}
+                          </span>
                         </button>
                         {/* Sessions under this folder */}
                         {isExpanded && (
@@ -427,14 +458,14 @@ export default function App() {
                   {headerTitle}
                 </h1>
               </div>
-              <p className="console-mono mt-1 text-xs text-[var(--console-muted)]">{headerSubtitle}</p>
+              <p className="console-mono mt-1 text-xs text-[var(--console-muted)]">
+                {headerSubtitle}
+              </p>
             </div>
           </section>
 
           <section className="console-scrollbar bg-grid min-h-0 flex-1 overflow-y-auto px-4 py-6 md:px-8">
-            <ErrorBoundary>
-              {content}
-            </ErrorBoundary>
+            <ErrorBoundary>{content}</ErrorBoundary>
           </section>
         </main>
       </div>

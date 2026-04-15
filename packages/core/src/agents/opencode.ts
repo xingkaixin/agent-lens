@@ -5,7 +5,6 @@ import type { SessionCacheMeta, ChangeCheckResult } from "./base.js";
 import type { SessionHead, SessionData, Message, MessagePart } from "../types/index.js";
 import { resolveProviderRoots, firstExisting } from "../discovery/paths.js";
 import { openDbReadOnly, isSqliteAvailable } from "../utils/sqlite.js";
-import { basenameTitle } from "../utils/title-fallback.js";
 
 export class OpenCodeAgent extends BaseAgent {
   readonly name = "opencode";
@@ -42,7 +41,8 @@ export class OpenCodeAgent extends BaseAgent {
 
       let rows: Record<string, unknown>[];
       if (hasMessageTable) {
-        rows = db.prepare(`
+        rows = db
+          .prepare(`
           SELECT
             s.id, s.title, s.time_created, s.time_updated, s.slug, s.directory,
             s.version, s.summary_files,
@@ -53,15 +53,18 @@ export class OpenCodeAgent extends BaseAgent {
           FROM session s
           WHERE s.time_created >= ?
           ORDER BY s.time_created DESC
-        `).all(cutoffTime);
+        `)
+          .all(cutoffTime);
       } else {
-        rows = db.prepare(`
+        rows = db
+          .prepare(`
           SELECT s.id, s.title, s.time_created, s.time_updated, s.slug, s.directory,
             s.version, s.summary_files, 0 AS message_count, NULL AS model_message_data
           FROM session s
           WHERE s.time_created >= ?
           ORDER BY s.time_created DESC
-        `).all(cutoffTime);
+        `)
+          .all(cutoffTime);
       }
 
       const heads: SessionHead[] = [];
@@ -131,7 +134,7 @@ export class OpenCodeAgent extends BaseAgent {
       const hasChanges = stat.mtimeMs > sinceTimestamp;
 
       // 如果数据库有变更，标记所有缓存会话需要刷新
-      const changedIds = hasChanges ? cachedSessions.map(s => s.id) : [];
+      const changedIds = hasChanges ? cachedSessions.map((s) => s.id) : [];
 
       return {
         hasChanges,
@@ -146,7 +149,7 @@ export class OpenCodeAgent extends BaseAgent {
   /**
    * 增量扫描 - 重新查询数据库
    */
-  incrementalScan(cachedSessions: SessionHead[], _changedIds: string[]): SessionHead[] {
+  incrementalScan(_cachedSessions: SessionHead[], _changedIds: string[]): SessionHead[] {
     // 对于 OpenCode，直接重新执行完整扫描
     return this.scan();
   }
@@ -167,7 +170,9 @@ export class OpenCodeAgent extends BaseAgent {
 
     try {
       // First get session metadata
-      const sessionRow = db.prepare("SELECT * FROM session WHERE id = ?").get(sessionId) as Record<string, unknown> | undefined;
+      const sessionRow = db.prepare("SELECT * FROM session WHERE id = ?").get(sessionId) as
+        | Record<string, unknown>
+        | undefined;
       if (!sessionRow) {
         throw new Error(`Session not found: ${sessionId}`);
       }
@@ -232,8 +237,8 @@ export class OpenCodeAgent extends BaseAgent {
 
         messages.push({
           id: String(msgRow.id ?? ""),
-          role: (String(msgData.role ?? "assistant")) as Message["role"],
-          agent: msgData.agent as string | null ?? null,
+          role: String(msgData.role ?? "assistant") as Message["role"],
+          agent: (msgData.agent as string | null) ?? null,
           mode: (msgData.mode as string | null) ?? null,
           model: (msgData.modelID as string | null) ?? null,
           provider: (msgData.providerID as string | null) ?? null,
@@ -249,7 +254,7 @@ export class OpenCodeAgent extends BaseAgent {
         title,
         slug,
         directory,
-        version: sessionRow.version as string | null ?? undefined,
+        version: (sessionRow.version as string | null) ?? undefined,
         time_created: timeCreated,
         time_updated: timeUpdated,
         summary_files: sessionRow.summary_files ?? undefined,

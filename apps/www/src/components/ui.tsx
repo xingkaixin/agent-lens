@@ -72,8 +72,8 @@ export function Hero() {
           in one place.
         </h1>
         <p className="mx-auto mt-5 max-w-md text-sm leading-relaxed text-[var(--console-muted)]">
-          Your sessions are scattered across tools and directories.
-          Agent Lens finds them all and puts them in one place.
+          Your sessions are scattered across tools and directories. Agent Lens finds them all and
+          puts them in one place.
         </p>
 
         {/* Terminal demo — part of hero */}
@@ -88,9 +88,11 @@ export function Hero() {
                 className="ml-auto rounded-sm p-1 text-[#64748b] transition-colors hover:text-[#94a3b8]"
                 title="Copy command"
               >
-                {copied
-                  ? <Check className="size-3.5 text-[#4ade80]" />
-                  : <Copy className="size-3.5" />}
+                {copied ? (
+                  <Check className="size-3.5 text-[#4ade80]" />
+                ) : (
+                  <Copy className="size-3.5" />
+                )}
               </button>
             </div>
             <div className="space-y-1.5">
@@ -137,38 +139,32 @@ const features: FeatureItem[] = [
   {
     icon: Eye,
     title: "Unified Timeline",
-    description:
-      "Browse sessions across all your AI agents in a single, searchable interface.",
+    description: "Browse sessions across all your AI agents in a single, searchable interface.",
   },
   {
     icon: Terminal,
     title: "Full Conversation Replay",
-    description:
-      "Read every message, tool call, and reasoning step exactly as it happened.",
+    description: "Read every message, tool call, and reasoning step exactly as it happened.",
   },
   {
     icon: BarChart3,
     title: "Cost & Token Visibility",
-    description:
-      "See exactly how many tokens and dollars each session consumed.",
+    description: "See exactly how many tokens and dollars each session consumed.",
   },
   {
     icon: Settings,
     title: "Zero Configuration",
-    description:
-      "Just run it. Agent Lens auto-discovers everything on your filesystem.",
+    description: "Just run it. Agent Lens auto-discovers everything on your filesystem.",
   },
   {
     icon: Shield,
     title: "100% Local & Private",
-    description:
-      "Nothing leaves your machine. No accounts, no cloud sync, no telemetry.",
+    description: "Nothing leaves your machine. No accounts, no cloud sync, no telemetry.",
   },
   {
     icon: Timer,
     title: "Instant Startup",
-    description:
-      "Scans and launches in seconds, then opens your browser automatically.",
+    description: "Scans and launches in seconds, then opens your browser automatically.",
   },
 ];
 
@@ -195,12 +191,8 @@ function FeatureCard({ icon: Icon, title, description }: FeatureItem) {
       <div className="mb-3 flex size-8 items-center justify-center rounded-sm border border-[var(--console-border)] bg-[var(--console-surface-muted)]">
         <Icon className="size-4 text-[var(--console-accent)]" />
       </div>
-      <h3 className="console-mono text-xs font-bold text-[var(--console-text)]">
-        {title}
-      </h3>
-      <p className="mt-1.5 text-sm leading-relaxed text-[var(--console-muted)]">
-        {description}
-      </p>
+      <h3 className="console-mono text-xs font-bold text-[var(--console-text)]">{title}</h3>
+      <p className="mt-1.5 text-sm leading-relaxed text-[var(--console-muted)]">{description}</p>
     </div>
   );
 }
@@ -228,11 +220,7 @@ export function Agents() {
               key={a.name}
               className="flex w-full max-w-[160px] flex-col items-center gap-2 rounded-sm border border-[var(--console-border)] bg-white px-4 py-5"
             >
-              <img
-                src={a.icon}
-                alt={a.name}
-                className="size-8 object-contain"
-              />
+              <img src={a.icon} alt={a.name} className="size-8 object-contain" />
               <span className="console-mono text-xs font-semibold text-[var(--console-text)]">
                 {a.name}
               </span>
@@ -250,9 +238,7 @@ export function Footer() {
   return (
     <footer className="border-t border-[var(--console-border)] px-6 py-8">
       <div className="mx-auto flex max-w-5xl items-center justify-between">
-        <span className="console-mono text-xs text-[var(--console-muted)]">
-          Agent Lens
-        </span>
+        <span className="console-mono text-xs text-[var(--console-muted)]">Agent Lens</span>
         <span className="console-mono text-xs text-[var(--console-muted)]">
           &copy; {new Date().getFullYear()}
         </span>

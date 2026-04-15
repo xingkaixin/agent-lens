@@ -26,7 +26,10 @@ function findWebDistPath(): string | null {
   return null;
 }
 
-export async function createServer(port: number, scanResult: ScanResult): Promise<{ url: string; shutdown: () => void }> {
+export async function createServer(
+  port: number,
+  scanResult: ScanResult,
+): Promise<{ url: string; shutdown: () => void }> {
   const app = new Hono();
 
   app.use("*", logger());

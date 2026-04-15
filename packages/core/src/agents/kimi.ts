@@ -5,7 +5,6 @@ import { BaseAgent } from "./base.js";
 import type { SessionHead, SessionData, Message, MessagePart } from "../types/index.js";
 import { resolveProviderRoots, firstExisting } from "../discovery/paths.js";
 import { parseJsonlLines } from "../utils/jsonl.js";
-import { basenameTitle } from "../utils/title-fallback.js";
 import { perf } from "../utils/perf.js";
 
 const KIMI_TOOL_TITLE_MAP: Record<string, string> = {
@@ -21,11 +20,6 @@ const KIMI_IGNORED_TOOLS = new Set(["SetTodoList"]);
 
 function mapToolTitle(toolName: string): string {
   return KIMI_TOOL_TITLE_MAP[toolName] ?? toolName;
-}
-
-function normalizeTitleText(text: string): string {
-  const line = text.split("\n").find((l) => l.trim());
-  return line?.trim().slice(0, 80) || "";
 }
 
 import type { SessionCacheMeta, ChangeCheckResult } from "./base.js";
@@ -48,14 +42,20 @@ interface KimiWorkDir {
 
 function normalizeToolArguments(raw: unknown): unknown {
   if (typeof raw === "string") {
-    try { return JSON.parse(raw); } catch { return raw; }
+    try {
+      return JSON.parse(raw);
+    } catch {
+      return raw;
+    }
   }
   return raw;
 }
 
 function normalizeToolOutputParts(content: unknown, timestampMs: number): MessagePart[] {
   if (typeof content === "string") {
-    return content.trim() ? [{ type: "text" as const, text: content, time_created: timestampMs }] : [];
+    return content.trim()
+      ? [{ type: "text" as const, text: content, time_created: timestampMs }]
+      : [];
   }
   if (Array.isArray(content)) {
     const parts: MessagePart[] = [];
@@ -77,10 +77,14 @@ function normalizeToolOutputParts(content: unknown, timestampMs: number): Messag
 function normalizeWireToolOutputParts(returnValue: unknown, timestampMs: number): MessagePart[] {
   if (returnValue == null) return [];
   if (typeof returnValue === "string") {
-    return returnValue.trim() ? [{ type: "text" as const, text: returnValue, time_created: timestampMs }] : [];
+    return returnValue.trim()
+      ? [{ type: "text" as const, text: returnValue, time_created: timestampMs }]
+      : [];
   }
   if (typeof returnValue === "object") {
-    return [{ type: "text", text: JSON.stringify(returnValue, null, 2), time_created: timestampMs }];
+    return [
+      { type: "text", text: JSON.stringify(returnValue, null, 2), time_created: timestampMs },
+    ];
   }
   const text = String(returnValue);
   return text.trim() ? [{ type: "text", text, time_created: timestampMs }] : [];
@@ -190,9 +194,12 @@ export class KimiAgent extends BaseAgent {
       }
 
       const cwd = this.projectMap.get(projectHash) || "";
-      const createdAt = wireMtime !== null
-        ? wireMtime * 1000
-        : (metaFile ? statSync(metaFile).mtimeMs : statSync(sessionDir).mtimeMs);
+      const createdAt =
+        wireMtime !== null
+          ? wireMtime * 1000
+          : metaFile
+            ? statSync(metaFile).mtimeMs
+            : statSync(sessionDir).mtimeMs;
 
       return {
         id: sessionId,
@@ -303,7 +310,7 @@ export class KimiAgent extends BaseAgent {
    * 增量扫描
    */
   incrementalScan(cachedSessions: SessionHead[], changedIds: string[]): SessionHead[] {
-    const sessionMap = new Map(cachedSessions.map(s => [s.id, s]));
+    const sessionMap = new Map(cachedSessions.map((s) => [s.id, s]));
 
     for (const dir of this.listSessionDirs()) {
       try {
@@ -363,17 +370,23 @@ export class KimiAgent extends BaseAgent {
         if (role === "user") {
           const text = String(record.content ?? "");
           if (text.trim()) {
-            messages.push(this.buildMessage({
-              messageId: `context-${seq}`, role: "user", timestampMs: 0,
-              parts: [{ type: "text", text, time_created: 0 }],
-            }));
+            messages.push(
+              this.buildMessage({
+                messageId: `context-${seq}`,
+                role: "user",
+                timestampMs: 0,
+                parts: [{ type: "text", text, time_created: 0 }],
+              }),
+            );
           }
           continue;
         }
 
         if (role === "assistant") {
           const { message, toolIndexes } = this.buildContextAssistantMessage(
-            record, seq, ignoredToolCallIds,
+            record,
+            seq,
+            ignoredToolCallIds,
           );
           if (!message) continue;
           const msgIndex = messages.length;
@@ -392,9 +405,14 @@ export class KimiAgent extends BaseAgent {
             continue;
           }
           if (outputParts.length > 0) {
-            messages.push(this.buildMessage({
-              messageId: `context-${seq}`, role: "tool", timestampMs: 0, parts: outputParts,
-            }));
+            messages.push(
+              this.buildMessage({
+                messageId: `context-${seq}`,
+                role: "tool",
+                timestampMs: 0,
+                parts: outputParts,
+              }),
+            );
           }
         }
       } catch {
@@ -434,10 +452,14 @@ export class KimiAgent extends BaseAgent {
           if (Array.isArray(userInput) && userInput.length > 0) {
             const text = String((userInput[0] as Record<string, unknown>)?.text ?? "");
             if (text.trim()) {
-              messages.push(this.buildMessage({
-                messageId: `wire-${seq}`, role: "user", timestampMs,
-                parts: [{ type: "text", text, time_created: timestampMs }],
-              }));
+              messages.push(
+                this.buildMessage({
+                  messageId: `wire-${seq}`,
+                  role: "user",
+                  timestampMs,
+                  parts: [{ type: "text", text, time_created: timestampMs }],
+                }),
+              );
             }
           }
           currentAssistantIndex = null;
@@ -447,7 +469,9 @@ export class KimiAgent extends BaseAgent {
 
         if (msgType === "ContentPart") {
           currentAssistantIndex = this.getOrCreateWireAssistant(
-            messages, currentAssistantIndex, `wire-${seq}`,
+            messages,
+            currentAssistantIndex,
+            `wire-${seq}`,
           );
           const assistant = messages[currentAssistantIndex]!;
           const partType = String(payload.type ?? "");
@@ -479,14 +503,16 @@ export class KimiAgent extends BaseAgent {
           if (!function_ || !callId || !toolName) continue;
 
           currentAssistantIndex = this.getOrCreateWireAssistant(
-            messages, currentAssistantIndex, `wire-${seq}`,
+            messages,
+            currentAssistantIndex,
+            `wire-${seq}`,
           );
           const assistant = messages[currentAssistantIndex]!;
 
           const rawArgs = function_.arguments;
           const normalizedArgs = normalizeToolArguments(rawArgs);
-          const buffer = typeof rawArgs === "string" && typeof normalizedArgs !== "string"
-            ? rawArgs : null;
+          const buffer =
+            typeof rawArgs === "string" && typeof normalizedArgs !== "string" ? rawArgs : null;
 
           const toolPart: MessagePart = {
             type: "tool",
@@ -513,8 +539,11 @@ export class KimiAgent extends BaseAgent {
           if (openToolCallId && ignoredToolCallIds.has(openToolCallId)) continue;
           const argumentsPart = String(payload.arguments_part ?? "");
           this.appendWireToolCallPart(
-            argumentsPart, openToolCallId, openToolArgumentBuffer,
-            messages, pendingToolCalls,
+            argumentsPart,
+            openToolCallId,
+            openToolArgumentBuffer,
+            messages,
+            pendingToolCalls,
           );
           continue;
         }
@@ -527,9 +556,14 @@ export class KimiAgent extends BaseAgent {
             continue;
           }
           if (outputParts.length > 0) {
-            messages.push(this.buildMessage({
-              messageId: `wire-${seq}`, role: "tool", timestampMs, parts: outputParts,
-            }));
+            messages.push(
+              this.buildMessage({
+                messageId: `wire-${seq}`,
+                role: "tool",
+                timestampMs,
+                parts: outputParts,
+              }),
+            );
           }
           continue;
         }
@@ -549,9 +583,16 @@ export class KimiAgent extends BaseAgent {
   // --- Helpers ---
 
   private buildMessage(opts: {
-    messageId: string; role: string; timestampMs: number; parts: MessagePart[];
-    agent?: string; mode?: string; model?: string | null; provider?: string | null;
-    tokens?: Record<string, unknown>; cost?: number;
+    messageId: string;
+    role: string;
+    timestampMs: number;
+    parts: MessagePart[];
+    agent?: string;
+    mode?: string;
+    model?: string | null;
+    provider?: string | null;
+    tokens?: Record<string, unknown>;
+    cost?: number;
   }): Message {
     return {
       id: opts.messageId,
@@ -624,13 +665,25 @@ export class KimiAgent extends BaseAgent {
     }
 
     if (parts.length === 0) {
-      return { message: this.buildMessage({ messageId: `context-${seq}`, role: "assistant", timestampMs: 0, parts: [] }), toolIndexes };
+      return {
+        message: this.buildMessage({
+          messageId: `context-${seq}`,
+          role: "assistant",
+          timestampMs: 0,
+          parts: [],
+        }),
+        toolIndexes,
+      };
     }
 
     const allTools = parts.every((p) => p.type === "tool");
     const message = this.buildMessage({
-      messageId: `context-${seq}`, role: "assistant", timestampMs: 0,
-      parts, agent: "kimi", mode: allTools ? "tool" : undefined,
+      messageId: `context-${seq}`,
+      role: "assistant",
+      timestampMs: 0,
+      parts,
+      agent: "kimi",
+      mode: allTools ? "tool" : undefined,
     });
 
     return { message, toolIndexes };
@@ -642,9 +695,15 @@ export class KimiAgent extends BaseAgent {
     messageId: string,
   ): number {
     if (currentIndex !== null) return currentIndex;
-    messages.push(this.buildMessage({
-      messageId, role: "assistant", timestampMs: 0, parts: [], agent: "kimi",
-    }));
+    messages.push(
+      this.buildMessage({
+        messageId,
+        role: "assistant",
+        timestampMs: 0,
+        parts: [],
+        agent: "kimi",
+      }),
+    );
     return messages.length - 1;
   }
 
@@ -709,7 +768,9 @@ export class KimiAgent extends BaseAgent {
       for (const line of content.split("\n").filter((l) => l.trim())) {
         try {
           const data = JSON.parse(line) as Record<string, unknown>;
-          const tokenUsage = (data.message as Record<string, unknown>)?.usage as Record<string, unknown> | undefined;
+          const tokenUsage = (data.message as Record<string, unknown>)?.usage as
+            | Record<string, unknown>
+            | undefined;
           if (!tokenUsage) continue;
           stats.total_input_tokens += Number(tokenUsage.input_tokens ?? 0);
           stats.total_output_tokens += Number(tokenUsage.output_tokens ?? 0);

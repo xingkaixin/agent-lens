@@ -53,7 +53,7 @@ export abstract class BaseAgent {
    */
   checkForChanges?(
     sinceTimestamp: number,
-    cachedSessions: SessionHead[]
+    cachedSessions: SessionHead[],
   ): Promise<ChangeCheckResult> | ChangeCheckResult;
 
   /**
@@ -64,6 +64,6 @@ export abstract class BaseAgent {
    */
   incrementalScan?(
     cachedSessions: SessionHead[],
-    changedIds: string[]
+    changedIds: string[],
   ): Promise<SessionHead[]> | SessionHead[];
 }

@@ -1,10 +1,4 @@
-import {
-  Header,
-  Hero,
-  Features,
-  Agents,
-  Footer,
-} from "./components/ui";
+import { Header, Hero, Features, Agents, Footer } from "./components/ui";
 
 export default function App() {
   return (

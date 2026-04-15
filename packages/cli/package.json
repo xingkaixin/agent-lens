@@ -1,10 +1,10 @@
 {
   "name": "@agent-lens/cli",
   "version": "0.1.0",
-  "type": "module",
   "bin": {
     "agent-lens": "dist/index.js"
   },
+  "type": "module",
   "scripts": {
     "build": "tsup && node scripts/copy-web-dist.js",
     "dev": "tsup --watch",
@@ -14,8 +14,8 @@
   "dependencies": {
     "@agent-lens/core": "workspace:*",
     "@hono/node-server": "^1.14.0",
-    "consola": "^3.4.2",
     "citty": "^0.1.6",
+    "consola": "^3.4.2",
     "hono": "^4.7.4",
     "open": "^10.1.2"
   },

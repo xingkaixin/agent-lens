@@ -170,7 +170,10 @@ function extractToolTextSegments(value: unknown): string[] {
 }
 
 function stripSystemTag(text: string) {
-  return text.replace(/^<system>/i, "").replace(/<\/system>$/i, "").trim();
+  return text
+    .replace(/^<system>/i, "")
+    .replace(/<\/system>$/i, "")
+    .trim();
 }
 
 function joinToolText(value: unknown, includeSystem = true) {
@@ -327,7 +330,11 @@ function formatCursorSearchOutput(rawOutput: unknown) {
   return lines.length > 0 ? lines.join("\n") : "No output captured.";
 }
 
-function buildStructuredDiffFromTexts(filePath: string, oldValue: string, newValue: string): DiffBlock[] {
+function buildStructuredDiffFromTexts(
+  filePath: string,
+  oldValue: string,
+  newValue: string,
+): DiffBlock[] {
   if (!oldValue.trim() && !newValue.trim()) return [];
   return [
     {
@@ -517,10 +524,14 @@ function normalizeToolState(part: MessagePart): NormalizedToolState {
 // Tool display strategies
 // ---------------------------------------------------------------------------
 
-function buildDefaultToolStrategy(tool: MessagePart, state: NormalizedToolState): ToolDisplayStrategy {
+function buildDefaultToolStrategy(
+  tool: MessagePart,
+  state: NormalizedToolState,
+): ToolDisplayStrategy {
   const preview = state.command || state.inputText || "{}";
   const compactPreview = preview.replace(/\s+/g, " ").trim();
-  const previewText = compactPreview.length > 72 ? `${compactPreview.slice(0, 72)}...` : compactPreview;
+  const previewText =
+    compactPreview.length > 72 ? `${compactPreview.slice(0, 72)}...` : compactPreview;
 
   return {
     Icon: SquareTerminal,
@@ -556,7 +567,10 @@ function buildSkillToolStrategy(
   };
 }
 
-function buildClaudeToolStrategy(tool: MessagePart, state: NormalizedToolState): ToolDisplayStrategy {
+function buildClaudeToolStrategy(
+  tool: MessagePart,
+  state: NormalizedToolState,
+): ToolDisplayStrategy {
   const defaultStrategy = buildDefaultToolStrategy(tool, state);
   const toolKey = (tool.tool || "").toLowerCase();
   const input = toRecord(state.inputValue);
@@ -614,7 +628,10 @@ function buildClaudeToolStrategy(tool: MessagePart, state: NormalizedToolState):
   return { ...defaultStrategy, title: getToolTitle(tool) };
 }
 
-function buildOpencodeToolStrategy(tool: MessagePart, state: NormalizedToolState): ToolDisplayStrategy {
+function buildOpencodeToolStrategy(
+  tool: MessagePart,
+  state: NormalizedToolState,
+): ToolDisplayStrategy {
   const defaultStrategy = buildDefaultToolStrategy(tool, state);
   const toolKey = (tool.tool || "").toLowerCase();
   const input = toRecord(state.inputValue);
@@ -622,9 +639,17 @@ function buildOpencodeToolStrategy(tool: MessagePart, state: NormalizedToolState
   if (toolKey === "glob") {
     const pattern = toPlainText(input.pattern);
     return {
-      ...defaultStrategy, Icon: FileSearch, title: tool.tool || "glob",
-      secondaryText: pattern || undefined, showInputPreview: false,
-      outputContent: { kind: "plain", text: getOutputOrErrorText(state), language: "text", isCode: false },
+      ...defaultStrategy,
+      Icon: FileSearch,
+      title: tool.tool || "glob",
+      secondaryText: pattern || undefined,
+      showInputPreview: false,
+      outputContent: {
+        kind: "plain",
+        text: getOutputOrErrorText(state),
+        language: "text",
+        isCode: false,
+      },
     };
   }
 
@@ -633,9 +658,17 @@ function buildOpencodeToolStrategy(tool: MessagePart, state: NormalizedToolState
     const pattern = toPlainText(input.pattern);
     const details = [path, pattern].filter(Boolean).join(" · ");
     return {
-      ...defaultStrategy, Icon: FileSearch, title: tool.tool || "grep",
-      secondaryText: details || undefined, showInputPreview: false,
-      outputContent: { kind: "plain", text: getOutputOrErrorText(state), language: "text", isCode: false },
+      ...defaultStrategy,
+      Icon: FileSearch,
+      title: tool.tool || "grep",
+      secondaryText: details || undefined,
+      showInputPreview: false,
+      outputContent: {
+        kind: "plain",
+        text: getOutputOrErrorText(state),
+        language: "text",
+        isCode: false,
+      },
     };
   }
 
@@ -644,22 +677,37 @@ function buildOpencodeToolStrategy(tool: MessagePart, state: NormalizedToolState
     const command = toPlainText(input.command);
     const secondaryText = description
       ? `${description}${command ? ` (${command})` : ""}`
-      : command ? `(${command})` : undefined;
+      : command
+        ? `(${command})`
+        : undefined;
     return {
-      ...defaultStrategy, Icon: SquareTerminal, title: tool.tool || "bash",
-      secondaryText, showInputPreview: false,
-      outputContent: { kind: "plain", text: getOutputOrErrorText(state), language: "text", isCode: false },
+      ...defaultStrategy,
+      Icon: SquareTerminal,
+      title: tool.tool || "bash",
+      secondaryText,
+      showInputPreview: false,
+      outputContent: {
+        kind: "plain",
+        text: getOutputOrErrorText(state),
+        language: "text",
+        isCode: false,
+      },
     };
   }
 
   if (toolKey === "read") {
     const filePath = getFilePathFromInput(state.inputValue);
     return {
-      ...defaultStrategy, Icon: BookOpenText, title: tool.tool || "read",
-      secondaryText: filePath || undefined, showInputPreview: false,
+      ...defaultStrategy,
+      Icon: BookOpenText,
+      title: tool.tool || "read",
+      secondaryText: filePath || undefined,
+      showInputPreview: false,
       outputContent: {
-        kind: "plain", text: extractReadContent(state.outputValue),
-        language: detectLanguageByFilePath(filePath), isCode: true,
+        kind: "plain",
+        text: extractReadContent(state.outputValue),
+        language: detectLanguageByFilePath(filePath),
+        isCode: true,
       },
     };
   }
@@ -667,9 +715,17 @@ function buildOpencodeToolStrategy(tool: MessagePart, state: NormalizedToolState
   if (toolKey === "edit") {
     const filePath = getFilePathFromInput(state.inputValue);
     return {
-      ...defaultStrategy, Icon: FilePenLine, title: tool.tool || "edit",
-      secondaryText: filePath || undefined, showInputPreview: false,
-      outputContent: { kind: "plain", text: extractEditDiff(state), language: "diff", isCode: true },
+      ...defaultStrategy,
+      Icon: FilePenLine,
+      title: tool.tool || "edit",
+      secondaryText: filePath || undefined,
+      showInputPreview: false,
+      outputContent: {
+        kind: "plain",
+        text: extractEditDiff(state),
+        language: "diff",
+        isCode: true,
+      },
     };
   }
 
@@ -677,11 +733,16 @@ function buildOpencodeToolStrategy(tool: MessagePart, state: NormalizedToolState
     const filePath = getFilePathFromInput(state.inputValue);
     const isSuccessfulWrite = state.status === "completed";
     return {
-      ...defaultStrategy, Icon: NotebookPen, title: tool.tool || "write",
-      secondaryText: filePath || undefined, showInputPreview: false,
+      ...defaultStrategy,
+      Icon: NotebookPen,
+      title: tool.tool || "write",
+      secondaryText: filePath || undefined,
+      showInputPreview: false,
       outputContent: {
-        kind: "plain", text: extractWriteContent(state),
-        language: detectLanguageByFilePath(filePath), isCode: isSuccessfulWrite,
+        kind: "plain",
+        text: extractWriteContent(state),
+        language: detectLanguageByFilePath(filePath),
+        isCode: isSuccessfulWrite,
       },
     };
   }
@@ -701,9 +762,17 @@ function buildKimiToolStrategy(tool: MessagePart, state: NormalizedToolState): T
   if (toolKey === "glob") {
     const pattern = toPlainText(input.pattern);
     return {
-      ...defaultStrategy, Icon: FileSearch, title: tool.title || "glob",
-      secondaryText: pattern || undefined, showInputPreview: false,
-      outputContent: { kind: "plain", text: getOutputOrErrorText(state), language: "text", isCode: false },
+      ...defaultStrategy,
+      Icon: FileSearch,
+      title: tool.title || "glob",
+      secondaryText: pattern || undefined,
+      showInputPreview: false,
+      outputContent: {
+        kind: "plain",
+        text: getOutputOrErrorText(state),
+        language: "text",
+        isCode: false,
+      },
     };
   }
 
@@ -712,29 +781,50 @@ function buildKimiToolStrategy(tool: MessagePart, state: NormalizedToolState): T
     const pattern = toPlainText(input.pattern);
     const details = [path, pattern].filter(Boolean).join(" · ");
     return {
-      ...defaultStrategy, Icon: FileSearch, title: tool.title || "grep",
-      secondaryText: details || undefined, showInputPreview: false,
-      outputContent: { kind: "plain", text: getOutputOrErrorText(state), language: "text", isCode: false },
+      ...defaultStrategy,
+      Icon: FileSearch,
+      title: tool.title || "grep",
+      secondaryText: details || undefined,
+      showInputPreview: false,
+      outputContent: {
+        kind: "plain",
+        text: getOutputOrErrorText(state),
+        language: "text",
+        isCode: false,
+      },
     };
   }
 
   if (toolKey === "shell") {
     const command = toPlainText(input.command);
     return {
-      ...defaultStrategy, Icon: SquareTerminal, title: tool.title || "bash",
-      secondaryText: command ? `(${command})` : undefined, showInputPreview: false,
-      outputContent: { kind: "plain", text: getOutputOrErrorText(state), language: "text", isCode: false },
+      ...defaultStrategy,
+      Icon: SquareTerminal,
+      title: tool.title || "bash",
+      secondaryText: command ? `(${command})` : undefined,
+      showInputPreview: false,
+      outputContent: {
+        kind: "plain",
+        text: getOutputOrErrorText(state),
+        language: "text",
+        isCode: false,
+      },
     };
   }
 
   if (toolKey === "readfile") {
     const filePath = getFilePathFromInput(state.inputValue);
     return {
-      ...defaultStrategy, Icon: BookOpenText, title: tool.title || "read",
-      secondaryText: filePath || undefined, showInputPreview: false,
+      ...defaultStrategy,
+      Icon: BookOpenText,
+      title: tool.title || "read",
+      secondaryText: filePath || undefined,
+      showInputPreview: false,
       outputContent: {
-        kind: "plain", text: extractReadContent(state.outputValue),
-        language: detectLanguageByFilePath(filePath), isCode: true,
+        kind: "plain",
+        text: extractReadContent(state.outputValue),
+        language: detectLanguageByFilePath(filePath),
+        isCode: true,
       },
     };
   }
@@ -743,8 +833,11 @@ function buildKimiToolStrategy(tool: MessagePart, state: NormalizedToolState): T
     const filePath = getFilePathFromInput(state.inputValue);
     const diffBlocks = buildKimiEditDiffBlocks(state, filePath);
     return {
-      ...defaultStrategy, Icon: FilePenLine, title: tool.title || "edit",
-      secondaryText: filePath || undefined, showInputPreview: false,
+      ...defaultStrategy,
+      Icon: FilePenLine,
+      title: tool.title || "edit",
+      secondaryText: filePath || undefined,
+      showInputPreview: false,
       outputContent:
         diffBlocks.length > 0
           ? { kind: "structured-diff", blocks: diffBlocks }
@@ -755,11 +848,16 @@ function buildKimiToolStrategy(tool: MessagePart, state: NormalizedToolState): T
   if (toolKey === "writefile") {
     const filePath = getFilePathFromInput(state.inputValue);
     return {
-      ...defaultStrategy, Icon: NotebookPen, title: tool.title || "write",
-      secondaryText: filePath || undefined, showInputPreview: false,
+      ...defaultStrategy,
+      Icon: NotebookPen,
+      title: tool.title || "write",
+      secondaryText: filePath || undefined,
+      showInputPreview: false,
       outputContent: {
-        kind: "plain", text: extractWriteContent(state),
-        language: detectLanguageByFilePath(filePath), isCode: state.status === "completed",
+        kind: "plain",
+        text: extractWriteContent(state),
+        language: detectLanguageByFilePath(filePath),
+        isCode: state.status === "completed",
       },
     };
   }
@@ -767,7 +865,10 @@ function buildKimiToolStrategy(tool: MessagePart, state: NormalizedToolState): T
   return defaultStrategy;
 }
 
-function buildCodexToolStrategy(tool: MessagePart, state: NormalizedToolState): ToolDisplayStrategy {
+function buildCodexToolStrategy(
+  tool: MessagePart,
+  state: NormalizedToolState,
+): ToolDisplayStrategy {
   const defaultStrategy = buildDefaultToolStrategy(tool, state);
   const toolKey = (tool.tool || "").toLowerCase();
 
@@ -777,37 +878,60 @@ function buildCodexToolStrategy(tool: MessagePart, state: NormalizedToolState): 
 
   if (toolKey === "exec_command") {
     const display = buildCodexExecCommandDisplay(
-      state.inputValue, getOutputOrErrorText(state), detectLanguageByFilePath,
+      state.inputValue,
+      getOutputOrErrorText(state),
+      detectLanguageByFilePath,
     );
     return {
-      ...defaultStrategy, Icon: SquareTerminal, title: "bash",
-      secondaryText: display.secondaryText, details: display.details, showInputPreview: false,
+      ...defaultStrategy,
+      Icon: SquareTerminal,
+      title: "bash",
+      secondaryText: display.secondaryText,
+      details: display.details,
+      showInputPreview: false,
       outputContent: {
-        kind: "plain", text: display.outputAnalysis.text,
-        language: display.outputAnalysis.language, isCode: display.outputAnalysis.isCode,
+        kind: "plain",
+        text: display.outputAnalysis.text,
+        language: display.outputAnalysis.language,
+        isCode: display.outputAnalysis.isCode,
       },
     };
   }
 
   if (toolKey === "write_stdin") {
     const display = buildCodexWriteStdinDisplay(
-      state.inputValue, getOutputOrErrorText(state), detectLanguageByFilePath,
+      state.inputValue,
+      getOutputOrErrorText(state),
+      detectLanguageByFilePath,
     );
     return {
-      ...defaultStrategy, Icon: SquareTerminal, title: "bash",
-      secondaryText: display.secondaryText, details: display.details, showInputPreview: false,
+      ...defaultStrategy,
+      Icon: SquareTerminal,
+      title: "bash",
+      secondaryText: display.secondaryText,
+      details: display.details,
+      showInputPreview: false,
       outputContent: {
-        kind: "plain", text: display.outputAnalysis.text,
-        language: display.outputAnalysis.language, isCode: display.outputAnalysis.isCode,
+        kind: "plain",
+        text: display.outputAnalysis.text,
+        language: display.outputAnalysis.language,
+        isCode: display.outputAnalysis.isCode,
       },
     };
   }
 
   if (toolKey === "request_user_input") {
-    const display = buildCodexRequestUserInputDisplay(state.inputValue, getOutputOrErrorText(state));
+    const display = buildCodexRequestUserInputDisplay(
+      state.inputValue,
+      getOutputOrErrorText(state),
+    );
     return {
-      ...defaultStrategy, Icon: CircleHelp, title: "ask",
-      secondaryText: display.secondaryText, details: display.details, showInputPreview: false,
+      ...defaultStrategy,
+      Icon: CircleHelp,
+      title: "ask",
+      secondaryText: display.secondaryText,
+      details: display.details,
+      showInputPreview: false,
       outputContent: display.outputContent,
     };
   }
@@ -816,9 +940,17 @@ function buildCodexToolStrategy(tool: MessagePart, state: NormalizedToolState): 
     const entries = getCodexPatchEntries(state.inputValue);
     const summary = summarizeCodexPatchEntries(entries);
     return {
-      ...defaultStrategy, Icon: FilePenLine, title: getToolTitle(tool, "patch"),
-      secondaryText: summary || undefined, details: [], showInputPreview: false,
-      outputContent: buildCodexPatchOutputContent(entries, getOutputOrErrorText(state), detectLanguageByFilePath),
+      ...defaultStrategy,
+      Icon: FilePenLine,
+      title: getToolTitle(tool, "patch"),
+      secondaryText: summary || undefined,
+      details: [],
+      showInputPreview: false,
+      outputContent: buildCodexPatchOutputContent(
+        entries,
+        getOutputOrErrorText(state),
+        detectLanguageByFilePath,
+      ),
     };
   }
 
@@ -826,17 +958,28 @@ function buildCodexToolStrategy(tool: MessagePart, state: NormalizedToolState): 
     const prompt = getSubagentPrompt(tool);
     const fallbackText = getOutputOrErrorText(state);
     return {
-      ...defaultStrategy, Icon: Bot,
+      ...defaultStrategy,
+      Icon: Bot,
       title: getSubagentToolTitle(tool) || getToolTitle(tool, "subagent"),
-      secondaryText: undefined, details: [], showInputPreview: false,
-      outputContent: { kind: "plain", text: prompt || fallbackText, language: "markdown", isCode: false },
+      secondaryText: undefined,
+      details: [],
+      showInputPreview: false,
+      outputContent: {
+        kind: "plain",
+        text: prompt || fallbackText,
+        language: "markdown",
+        isCode: false,
+      },
     };
   }
 
   return defaultStrategy;
 }
 
-function buildCursorToolStrategy(tool: MessagePart, state: NormalizedToolState): ToolDisplayStrategy {
+function buildCursorToolStrategy(
+  tool: MessagePart,
+  state: NormalizedToolState,
+): ToolDisplayStrategy {
   const defaultStrategy = buildDefaultToolStrategy(tool, state);
   const toolKey = (tool.tool || "").toLowerCase();
   const input = toRecord(state.inputValue);
@@ -845,12 +988,24 @@ function buildCursorToolStrategy(tool: MessagePart, state: NormalizedToolState):
   if (toolKey === "read_file_v2") {
     const content = extractCursorReadContent(state.outputValue);
     return {
-      ...defaultStrategy, Icon: BookOpenText, title: "read",
+      ...defaultStrategy,
+      Icon: BookOpenText,
+      title: "read",
       secondaryText: filePath || undefined,
-      details: content === "No output captured." ? [{ label: "Lines", value: toPlainText(getCursorOutputRecord(state.outputValue).totalLinesInFile) }] : [],
+      details:
+        content === "No output captured."
+          ? [
+              {
+                label: "Lines",
+                value: toPlainText(getCursorOutputRecord(state.outputValue).totalLinesInFile),
+              },
+            ]
+          : [],
       showInputPreview: false,
       outputContent: {
-        kind: "plain", text: content, language: detectLanguageByFilePath(filePath),
+        kind: "plain",
+        text: content,
+        language: detectLanguageByFilePath(filePath),
         isCode: content !== "No output captured.",
       },
     };
@@ -859,11 +1014,16 @@ function buildCursorToolStrategy(tool: MessagePart, state: NormalizedToolState):
   if (toolKey === "edit_file_v2") {
     const diffText = normalizeEscapedNewlines(toStringValue(input.streamingContent));
     return {
-      ...defaultStrategy, Icon: FilePenLine, title: "edit",
-      secondaryText: filePath || undefined, showInputPreview: false,
+      ...defaultStrategy,
+      Icon: FilePenLine,
+      title: "edit",
+      secondaryText: filePath || undefined,
+      showInputPreview: false,
       outputContent: {
-        kind: "plain", text: diffText || getOutputOrErrorText(state),
-        language: diffText ? "diff" : "text", isCode: Boolean(diffText),
+        kind: "plain",
+        text: diffText || getOutputOrErrorText(state),
+        language: diffText ? "diff" : "text",
+        isCode: Boolean(diffText),
       },
     };
   }
@@ -873,9 +1033,18 @@ function buildCursorToolStrategy(tool: MessagePart, state: NormalizedToolState):
     const path = toPlainText(input.path);
     const summary = [path, pattern].filter(Boolean).join(" · ");
     return {
-      ...defaultStrategy, Icon: FileSearch, title: "grep",
-      secondaryText: summary || undefined, details: [], showInputPreview: false,
-      outputContent: { kind: "plain", text: getOutputOrErrorText(state), language: "text", isCode: false },
+      ...defaultStrategy,
+      Icon: FileSearch,
+      title: "grep",
+      secondaryText: summary || undefined,
+      details: [],
+      showInputPreview: false,
+      outputContent: {
+        kind: "plain",
+        text: getOutputOrErrorText(state),
+        language: "text",
+        isCode: false,
+      },
     };
   }
 
@@ -884,11 +1053,17 @@ function buildCursorToolStrategy(tool: MessagePart, state: NormalizedToolState):
     const targetDirectory = toPlainText(input.targetDirectory);
     const summary = [targetDirectory, pattern].filter(Boolean).join(" · ");
     return {
-      ...defaultStrategy, Icon: FileSearch, title: "glob",
-      secondaryText: summary || undefined, details: [], showInputPreview: false,
+      ...defaultStrategy,
+      Icon: FileSearch,
+      title: "glob",
+      secondaryText: summary || undefined,
+      details: [],
+      showInputPreview: false,
       outputContent: {
-        kind: "plain", text: formatCursorSearchOutput(state.outputValue),
-        language: "text", isCode: false,
+        kind: "plain",
+        text: formatCursorSearchOutput(state.outputValue),
+        language: "text",
+        isCode: false,
       },
     };
   }
@@ -898,11 +1073,22 @@ function buildCursorToolStrategy(tool: MessagePart, state: NormalizedToolState):
     const description = toPlainText(input.commandDescription);
     const secondaryText = description
       ? `${description}${command ? ` (${command})` : ""}`
-      : command ? `(${command})` : undefined;
+      : command
+        ? `(${command})`
+        : undefined;
     return {
-      ...defaultStrategy, Icon: SquareTerminal, title: "bash",
-      secondaryText, details: [], showInputPreview: false,
-      outputContent: { kind: "plain", text: getOutputOrErrorText(state), language: "text", isCode: false },
+      ...defaultStrategy,
+      Icon: SquareTerminal,
+      title: "bash",
+      secondaryText,
+      details: [],
+      showInputPreview: false,
+      outputContent: {
+        kind: "plain",
+        text: getOutputOrErrorText(state),
+        language: "text",
+        isCode: false,
+      },
     };
   }
 
@@ -999,7 +1185,9 @@ export function SessionDetail({ session }: SessionDetailProps) {
 
   return (
     <div className="mx-auto w-full max-w-6xl space-y-8 px-2 md:px-4 animate-in fade-in slide-in-from-bottom-2 duration-300">
-      <SessionSummarySection summary={typeof session.summary_files === "string" ? session.summary_files : undefined} />
+      <SessionSummarySection
+        summary={typeof session.summary_files === "string" ? session.summary_files : undefined}
+      />
       <div className="grid gap-6 lg:grid-cols-[240px_minmax(0,1fr)] lg:items-start">
         <SessionToc
           toc={toc}
@@ -1353,7 +1541,13 @@ function ReasoningSection({ parts }: { parts: MessagePart[] }) {
   );
 }
 
-function ToolsSection({ parts, sessionAgentKey }: { parts: MessagePart[]; sessionAgentKey: string }) {
+function ToolsSection({
+  parts,
+  sessionAgentKey,
+}: {
+  parts: MessagePart[];
+  sessionAgentKey: string;
+}) {
   return (
     <div className="space-y-2">
       <div className="space-y-2">
@@ -1403,7 +1597,11 @@ function PlanItem({ part }: { part: MessagePart }) {
                 </span>
               </span>
               <span className="mt-0.5 shrink-0 text-[var(--console-muted)]">
-                {expanded ? <ChevronUp className="size-3.5" /> : <ChevronDown className="size-3.5" />}
+                {expanded ? (
+                  <ChevronUp className="size-3.5" />
+                ) : (
+                  <ChevronDown className="size-3.5" />
+                )}
               </span>
             </button>
           ) : (
@@ -1477,7 +1675,11 @@ function ToolItem({ tool, sessionAgentKey }: { tool: MessagePart; sessionAgentKe
                 ) : null}
               </span>
               <span className="mt-0.5 shrink-0 text-[var(--console-muted)]">
-                {expanded ? <ChevronUp className="size-3.5" /> : <ChevronDown className="size-3.5" />}
+                {expanded ? (
+                  <ChevronUp className="size-3.5" />
+                ) : (
+                  <ChevronDown className="size-3.5" />
+                )}
               </span>
             </button>
           ) : (

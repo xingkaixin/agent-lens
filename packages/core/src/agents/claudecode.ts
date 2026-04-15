@@ -131,7 +131,10 @@ export class ClaudeCodeAgent extends BaseAgent {
     const pendingToolCalls = new Map<string, [number, number]>();
     const ignoredToolCallIds = new Set<string>();
     const assistantUuidToToolCalls = new Map<string, string[]>();
-    const assistantState = { currentIndex: null as number | null, latestTextIndex: null as number | null };
+    const assistantState = {
+      currentIndex: null as number | null,
+      latestTextIndex: null as number | null,
+    };
 
     let totalCost = 0;
     let totalInputTokens = 0;
@@ -140,8 +143,12 @@ export class ClaudeCodeAgent extends BaseAgent {
     for (const record of parseJsonlLines(content)) {
       try {
         this.convertRecord(
-          record, messages, pendingToolCalls, ignoredToolCallIds,
-          assistantUuidToToolCalls, assistantState,
+          record,
+          messages,
+          pendingToolCalls,
+          ignoredToolCallIds,
+          assistantUuidToToolCalls,
+          assistantState,
         );
       } catch {
         // skip malformed records
@@ -229,7 +236,7 @@ export class ClaudeCodeAgent extends BaseAgent {
     if (!this.basePath) return cachedSessions;
 
     // 创建缓存会话的 Map 便于更新
-    const sessionMap = new Map(cachedSessions.map(s => [s.id, s]));
+    const sessionMap = new Map(cachedSessions.map((s) => [s.id, s]));
 
     // 重新扫描变更的会话
     for (const projectDir of this.listProjectDirs()) {
@@ -361,9 +368,7 @@ export class ClaudeCodeAgent extends BaseAgent {
     // Try to get title from sessions-index.json
     const index = this.loadSessionsIndex(projectDir);
     const indexEntry = index.get(sessionId);
-    const explicitTitle = indexEntry?.summary
-      ? String(indexEntry.summary)
-      : null;
+    const explicitTitle = indexEntry?.summary ? String(indexEntry.summary) : null;
 
     // Extract lightweight metadata; cwd lives in user-type records, not the first line
     let updatedAt = createdAt;
@@ -465,9 +470,23 @@ export class ClaudeCodeAgent extends BaseAgent {
     const msgType = String(data["type"] ?? "");
 
     if (msgType === "assistant") {
-      this.convertAssistantRecord(data, messages, pendingToolCalls, ignoredToolCallIds, assistantUuidToToolCalls, assistantState);
+      this.convertAssistantRecord(
+        data,
+        messages,
+        pendingToolCalls,
+        ignoredToolCallIds,
+        assistantUuidToToolCalls,
+        assistantState,
+      );
     } else if (msgType === "user") {
-      this.convertUserRecord(data, messages, pendingToolCalls, ignoredToolCallIds, assistantUuidToToolCalls, assistantState);
+      this.convertUserRecord(
+        data,
+        messages,
+        pendingToolCalls,
+        ignoredToolCallIds,
+        assistantUuidToToolCalls,
+        assistantState,
+      );
     } else if (msgType === "tool_result") {
       this.convertToolResultRecord(data, messages, assistantState);
     }
@@ -500,7 +519,8 @@ export class ClaudeCodeAgent extends BaseAgent {
           const text = String(part["thinking"] ?? "");
           if (text.trim()) {
             currentAssistantIndex = this.appendAssistantReasoning(
-              messages, { messageId: uuid, msg, timestampMs, text },
+              messages,
+              { messageId: uuid, msg, timestampMs, text },
               currentAssistantIndex,
             );
           }
@@ -511,7 +531,8 @@ export class ClaudeCodeAgent extends BaseAgent {
           const text = String(part["text"] ?? "");
           if (text.trim()) {
             currentAssistantIndex = this.appendAssistantText(
-              messages, { messageId: uuid, msg, timestampMs, text },
+              messages,
+              { messageId: uuid, msg, timestampMs, text },
               currentAssistantIndex,
             );
             latestAssistantTextIndex = currentAssistantIndex;
@@ -530,9 +551,13 @@ export class ClaudeCodeAgent extends BaseAgent {
         }
 
         const toolPart = this.buildToolPart(part, timestampMs);
-        const [msgIndex, partIndex] = this.attachToolCallToLatestAssistant(
-          messages, { messageId: uuid, msg, timestampMs, toolPart, latestTextIndex: latestAssistantTextIndex },
-        );
+        const [msgIndex, partIndex] = this.attachToolCallToLatestAssistant(messages, {
+          messageId: uuid,
+          msg,
+          timestampMs,
+          toolPart,
+          latestTextIndex: latestAssistantTextIndex,
+        });
         currentAssistantIndex = msgIndex;
         if (toolCallId) {
           pendingToolCalls.set(toolCallId, [msgIndex, partIndex]);
@@ -594,16 +619,31 @@ export class ClaudeCodeAgent extends BaseAgent {
       if (toolCallId && ignoredToolCallIds.has(toolCallId)) continue;
 
       const outputParts = this.normalizeClaudeToolOutput(ci["content"], timestampMs);
-      if (this.backfillToolOutput(messages, pendingToolCalls, toolCallId, outputParts, toolStateUpdates)) {
+      if (
+        this.backfillToolOutput(
+          messages,
+          pendingToolCalls,
+          toolCallId,
+          outputParts,
+          toolStateUpdates,
+        )
+      ) {
         continue;
       }
 
-      const fallback = this.buildFallbackToolMessage({ messageId: uuid, timestampMs, toolCallId, outputParts });
+      const fallback = this.buildFallbackToolMessage({
+        messageId: uuid,
+        timestampMs,
+        toolCallId,
+        outputParts,
+      });
       if (fallback) messages.push(fallback);
     }
 
     if (visibleParts.length > 0) {
-      messages.push(this.buildMessage({ messageId: uuid, role: "user", timestampMs, parts: visibleParts }));
+      messages.push(
+        this.buildMessage({ messageId: uuid, role: "user", timestampMs, parts: visibleParts }),
+      );
     }
 
     assistantState.currentIndex = null;
@@ -620,7 +660,12 @@ export class ClaudeCodeAgent extends BaseAgent {
     const outputParts = this.normalizeClaudeToolOutput(msg["content"], timestampMs);
     const uuid = String(data["uuid"] ?? "");
 
-    const fallback = this.buildFallbackToolMessage({ messageId: uuid, timestampMs, toolCallId: null, outputParts });
+    const fallback = this.buildFallbackToolMessage({
+      messageId: uuid,
+      timestampMs,
+      toolCallId: null,
+      outputParts,
+    });
     if (fallback) messages.push(fallback);
 
     assistantState.currentIndex = null;
@@ -630,9 +675,16 @@ export class ClaudeCodeAgent extends BaseAgent {
   // --- Message building ---
 
   private buildMessage(opts: {
-    messageId: string; role: string; timestampMs: number; parts: MessagePart[];
-    agent?: string; mode?: string; model?: string | null; provider?: string | null;
-    tokens?: Record<string, unknown>; cost?: number;
+    messageId: string;
+    role: string;
+    timestampMs: number;
+    parts: MessagePart[];
+    agent?: string;
+    mode?: string;
+    model?: string | null;
+    provider?: string | null;
+    tokens?: Record<string, unknown>;
+    cost?: number;
   }): Message {
     return {
       id: opts.messageId,
@@ -680,8 +732,11 @@ export class ClaudeCodeAgent extends BaseAgent {
     if (usage && typeof usage === "object" && !message.tokens) {
       const u = usage as Record<string, unknown>;
       message.tokens = {
-        input: (u["input_tokens"] as number ?? 0) + (u["cache_creation_input_tokens"] as number ?? 0) + (u["cache_read_input_tokens"] as number ?? 0),
-        output: u["output_tokens"] as number ?? 0,
+        input:
+          ((u["input_tokens"] as number) ?? 0) +
+          ((u["cache_creation_input_tokens"] as number) ?? 0) +
+          ((u["cache_read_input_tokens"] as number) ?? 0),
+        output: (u["output_tokens"] as number) ?? 0,
       };
     }
   }
@@ -707,8 +762,11 @@ export class ClaudeCodeAgent extends BaseAgent {
     }
 
     const message = this.buildMessage({
-      messageId: opts.messageId, role: "assistant", timestampMs: opts.timestampMs,
-      parts: [part], agent: "claude",
+      messageId: opts.messageId,
+      role: "assistant",
+      timestampMs: opts.timestampMs,
+      parts: [part],
+      agent: "claude",
     });
     this.applyAssistantMetadata(message, opts.msg);
     messages.push(message);
@@ -733,8 +791,11 @@ export class ClaudeCodeAgent extends BaseAgent {
     }
 
     const message = this.buildMessage({
-      messageId: opts.messageId, role: "assistant", timestampMs: opts.timestampMs,
-      parts: [part], agent: "claude",
+      messageId: opts.messageId,
+      role: "assistant",
+      timestampMs: opts.timestampMs,
+      parts: [part],
+      agent: "claude",
     });
     this.applyAssistantMetadata(message, opts.msg);
     messages.push(message);
@@ -743,7 +804,13 @@ export class ClaudeCodeAgent extends BaseAgent {
 
   private attachToolCallToLatestAssistant(
     messages: Message[],
-    opts: { messageId: string; msg: Record<string, unknown>; timestampMs: number; toolPart: MessagePart; latestTextIndex: number | null },
+    opts: {
+      messageId: string;
+      msg: Record<string, unknown>;
+      timestampMs: number;
+      toolPart: MessagePart;
+      latestTextIndex: number | null;
+    },
   ): [number, number] {
     if (opts.latestTextIndex !== null) {
       const message = messages[opts.latestTextIndex]!;
@@ -753,8 +820,12 @@ export class ClaudeCodeAgent extends BaseAgent {
     }
 
     const message = this.buildMessage({
-      messageId: opts.messageId, role: "assistant", timestampMs: opts.timestampMs,
-      parts: [opts.toolPart], agent: "claude", mode: "tool",
+      messageId: opts.messageId,
+      role: "assistant",
+      timestampMs: opts.timestampMs,
+      parts: [opts.toolPart],
+      agent: "claude",
+      mode: "tool",
     });
     this.applyAssistantMetadata(message, opts.msg);
     messages.push(message);
@@ -793,7 +864,11 @@ export class ClaudeCodeAgent extends BaseAgent {
       const parts: MessagePart[] = [];
       for (const item of content) {
         if (typeof item === "object" && item !== null) {
-          const text = String((item as Record<string, unknown>)["text"] ?? (item as Record<string, unknown>)["content"] ?? "");
+          const text = String(
+            (item as Record<string, unknown>)["text"] ??
+              (item as Record<string, unknown>)["content"] ??
+              "",
+          );
           if (text.trim()) parts.push(this.buildTextPart(text, timestampMs));
         } else if (typeof item === "string" && item.trim()) {
           parts.push(this.buildTextPart(item, timestampMs));
@@ -821,7 +896,9 @@ export class ClaudeCodeAgent extends BaseAgent {
     if (location === undefined) return false;
 
     const [msgIndex, partIndex] = location;
-    const state = messages[msgIndex]!.parts[partIndex]!.state ?? (messages[msgIndex]!.parts[partIndex]!.state = {});
+    const state =
+      messages[msgIndex]!.parts[partIndex]!.state ??
+      (messages[msgIndex]!.parts[partIndex]!.state = {});
 
     if (outputParts.length > 0) {
       const existing = state.output;
@@ -883,11 +960,16 @@ export class ClaudeCodeAgent extends BaseAgent {
   // --- Fallback ---
 
   private buildFallbackToolMessage(opts: {
-    messageId: string; timestampMs: number; toolCallId: string | null; outputParts: MessagePart[];
+    messageId: string;
+    timestampMs: number;
+    toolCallId: string | null;
+    outputParts: MessagePart[];
   }): Message | null {
     if (opts.outputParts.length === 0) return null;
     return this.buildMessage({
-      messageId: opts.messageId, role: "tool", timestampMs: opts.timestampMs,
+      messageId: opts.messageId,
+      role: "tool",
+      timestampMs: opts.timestampMs,
       parts: opts.outputParts,
     });
   }

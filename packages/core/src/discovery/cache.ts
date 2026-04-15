@@ -132,10 +132,7 @@ export function getCacheInfo(): { lastScanTime: number | null; size: number } {
     }
 
     const data = JSON.parse(readFileSync(cachePath, "utf-8")) as CacheData;
-    const size = Object.values(data.entries).reduce(
-      (sum, entry) => sum + entry.sessions.length,
-      0,
-    );
+    const size = Object.values(data.entries).reduce((sum, entry) => sum + entry.sessions.length, 0);
 
     return {
       lastScanTime: data.lastScanTime || null,

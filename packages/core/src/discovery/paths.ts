@@ -1,6 +1,6 @@
 import { existsSync } from "node:fs";
 import { homedir, platform } from "node:os";
-import { join, resolve } from "node:path";
+import { join } from "node:path";
 
 function envPath(name: string): string | null {
   const value = process.env[name];
@@ -51,9 +51,7 @@ export function getCursorDataPath(): string | null {
 
   const p = platform();
   if (p === "darwin") {
-    return firstExisting(
-      join(homedir(), "Library", "Application Support", "Cursor", "User"),
-    );
+    return firstExisting(join(homedir(), "Library", "Application Support", "Cursor", "User"));
   }
   if (p === "linux") {
     const xdg = envPath("XDG_CONFIG_HOME") ?? join(homedir(), ".config");

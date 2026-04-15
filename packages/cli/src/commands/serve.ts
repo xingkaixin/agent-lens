@@ -49,12 +49,15 @@ export const serveCommand = defineCommand({
     if (jsonOnly) {
       const { getAgentInfoMap } = await import("@agent-lens/core");
       const info = getAgentInfoMap(
-        Object.fromEntries(
-          Object.entries(result.byAgent).map(([k, v]) => [k, v.length]),
-        ),
+        Object.fromEntries(Object.entries(result.byAgent).map(([k, v]) => [k, v.length])),
       );
       const output = {
-        agents: info.map(({ name, displayName, count }) => ({ name, displayName, count, available: count > 0 })),
+        agents: info.map(({ name, displayName, count }) => ({
+          name,
+          displayName,
+          count,
+          available: count > 0,
+        })),
         sessions: result.sessions,
       };
       console.log(JSON.stringify(output, null, 2));

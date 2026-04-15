@@ -2,6 +2,9 @@
   "name": "@agent-lens/core",
   "version": "0.1.0",
   "type": "module",
+  "main": "./dist/index.js",
+  "module": "./dist/index.mjs",
+  "types": "./dist/index.d.ts",
   "exports": {
     ".": {
       "types": "./dist/index.d.ts",
@@ -9,17 +12,14 @@
       "require": "./dist/index.js"
     }
   },
-  "main": "./dist/index.js",
-  "module": "./dist/index.mjs",
-  "types": "./dist/index.d.ts",
   "scripts": {
     "build": "tsup",
     "dev": "tsup --watch",
     "clean": "rm -rf dist"
   },
   "devDependencies": {
-    "@types/node": "^25.5.2",
     "@types/better-sqlite3": "^7.6.13",
+    "@types/node": "^25.5.2",
     "node-gyp": "^11.2.0",
     "tsup": "^8.4.0",
     "typescript": "^5.9.3"

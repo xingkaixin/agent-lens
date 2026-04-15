@@ -10,7 +10,10 @@ try {
   const require = createRequire(import.meta.url);
   // eslint-disable-next-line @typescript-eslint/no-require-imports
   const mod = require("better-sqlite3");
-  DatabaseConstructor = typeof mod === "function" ? mod : (mod as { default?: unknown }).default as typeof DatabaseConstructor;
+  DatabaseConstructor =
+    typeof mod === "function"
+      ? mod
+      : ((mod as { default?: unknown }).default as typeof DatabaseConstructor);
 } catch {
   // better-sqlite3 not installed — adapters that need SQLite will gracefully skip
 }
@@ -36,7 +39,9 @@ export function openDbReadOnly(dbPath: string): SQLiteDatabase | null {
   if (!DatabaseConstructor) return null;
   try {
     // better-sqlite3 constructor with readonly flag
-    const db = (DatabaseConstructor as (path: string, options?: { readonly?: boolean }) => SQLiteDatabase)(dbPath, { readonly: true });
+    const db = (
+      DatabaseConstructor as (path: string, options?: { readonly?: boolean }) => SQLiteDatabase
+    )(dbPath, { readonly: true });
     return db;
   } catch {
     return null;

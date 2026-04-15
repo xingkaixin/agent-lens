@@ -47,17 +47,39 @@ function countToolPart(toolMap: Map<string, ToolFilterItem>, part: MessagePart) 
 }
 
 export function buildSessionDetailToc(messages: Message[]): SessionDetailToc {
-  const counts: Record<TocFilterId, number> = { user: 0, agent_message: 0, thinking: 0, plan: 0, tools_all: 0 };
+  const counts: Record<TocFilterId, number> = {
+    user: 0,
+    agent_message: 0,
+    thinking: 0,
+    plan: 0,
+    tools_all: 0,
+  };
   const filterIds = new Set<string>();
   const toolMap = new Map<string, ToolFilterItem>();
 
   for (const msg of messages) {
     const blocks = buildMessageBlocks(msg.parts);
     for (const block of blocks) {
-      if (msg.role === "user") { counts.user += 1; filterIds.add("user"); continue; }
-      if (block.type === "text") { counts.agent_message += 1; filterIds.add("agent_message"); continue; }
-      if (block.type === "reasoning") { counts.thinking += 1; filterIds.add("thinking"); continue; }
-      if (block.type === "plan") { counts.plan += 1; filterIds.add("plan"); continue; }
+      if (msg.role === "user") {
+        counts.user += 1;
+        filterIds.add("user");
+        continue;
+      }
+      if (block.type === "text") {
+        counts.agent_message += 1;
+        filterIds.add("agent_message");
+        continue;
+      }
+      if (block.type === "reasoning") {
+        counts.thinking += 1;
+        filterIds.add("thinking");
+        continue;
+      }
+      if (block.type === "plan") {
+        counts.plan += 1;
+        filterIds.add("plan");
+        continue;
+      }
 
       counts.tools_all += block.parts.length;
       filterIds.add("tools_all");
@@ -94,7 +116,10 @@ function filterToolBlock(block: MessageBlock, filters: Set<string>): MessageBloc
   return { ...block, parts };
 }
 
-export function filterSessionMessages(messages: Message[], selectedFilters: Set<string>): FilteredSessionMessage[] {
+export function filterSessionMessages(
+  messages: Message[],
+  selectedFilters: Set<string>,
+): FilteredSessionMessage[] {
   return messages
     .map((msg) => {
       const blocks = buildMessageBlocks(msg.parts)

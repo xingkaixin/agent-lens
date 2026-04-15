@@ -93,7 +93,11 @@ function MissingStateHero({
           </span>
           <div className="mt-4 flex items-start gap-3">
             {iconSrc ? (
-              <img src={iconSrc} alt={iconAlt || ""} className="mt-1 size-8 shrink-0 object-contain" />
+              <img
+                src={iconSrc}
+                alt={iconAlt || ""}
+                className="mt-1 size-8 shrink-0 object-contain"
+              />
             ) : null}
             <h2 className="console-mono text-2xl leading-tight font-semibold tracking-tight text-[var(--console-text)] md:text-[2rem]">
               {title}

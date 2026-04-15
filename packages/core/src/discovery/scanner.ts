@@ -1,6 +1,6 @@
 import { resolve } from "node:path";
 import type { SessionHead } from "../types/index.js";
-import type { BaseAgent, SessionCacheMeta, ChangeCheckResult } from "../agents/index.js";
+import type { BaseAgent, SessionCacheMeta } from "../agents/index.js";
 import { createRegisteredAgents } from "../agents/index.js";
 import { perf } from "../utils/index.js";
 import { loadCachedSessions, saveCachedSessions } from "./cache.js";
@@ -29,7 +29,7 @@ export interface ScanResult {
 /** 扫描状态更新回调 */
 export interface ScanProgress {
   agent: string;
-  phase: 'cache' | 'checking' | 'incremental' | 'complete';
+  phase: "cache" | "checking" | "incremental" | "complete";
   cachedCount?: number;
   newCount?: number;
   changedCount?: number;
@@ -84,7 +84,7 @@ interface AgentScanResult {
 async function scanAgentSmart(
   agent: BaseAgent,
   options: ScanOptions,
-  onProgress?: (progress: ScanProgress) => void
+  onProgress?: (progress: ScanProgress) => void,
 ): Promise<AgentScanResult | null> {
   const useCache = options.useCache ?? true;
   const smartRefresh = options.smartRefresh ?? true;
@@ -105,7 +105,7 @@ async function scanAgentSmart(
       // 通知缓存已加载
       onProgress?.({
         agent: agent.name,
-        phase: 'cache',
+        phase: "cache",
         cachedCount: cached.sessions.length,
       });
 
@@ -132,30 +132,30 @@ async function refreshAgentAsync(
   agent: BaseAgent,
   cachedSessions: SessionHead[],
   cacheTimestamp: number,
-  onProgress?: (progress: ScanProgress) => void
+  onProgress?: (progress: ScanProgress) => void,
 ): Promise<void> {
   try {
     // 检测变更
-    onProgress?.({ agent: agent.name, phase: 'checking' });
+    onProgress?.({ agent: agent.name, phase: "checking" });
 
     const checkResult = await Promise.resolve(
-      agent.checkForChanges!(cacheTimestamp, cachedSessions)
+      agent.checkForChanges!(cacheTimestamp, cachedSessions),
     );
 
     if (!checkResult.hasChanges) {
-      onProgress?.({ agent: agent.name, phase: 'complete' });
+      onProgress?.({ agent: agent.name, phase: "complete" });
       return;
     }
 
     // 增量刷新
     onProgress?.({
       agent: agent.name,
-      phase: 'incremental',
+      phase: "incremental",
       changedCount: checkResult.changedIds?.length,
     });
 
     const updatedSessions = await Promise.resolve(
-      agent.incrementalScan!(cachedSessions, checkResult.changedIds || [])
+      agent.incrementalScan!(cachedSessions, checkResult.changedIds || []),
     );
 
     // 保存更新后的缓存
@@ -170,7 +170,7 @@ async function refreshAgentAsync(
 
     onProgress?.({
       agent: agent.name,
-      phase: 'complete',
+      phase: "complete",
       newCount: updatedSessions.length,
     });
   } catch (err) {
@@ -185,7 +185,7 @@ async function refreshAgentAsync(
 async function scanAgentFull(
   agent: BaseAgent,
   options: ScanOptions,
-  onProgress?: (progress: ScanProgress) => void
+  onProgress?: (progress: ScanProgress) => void,
 ): Promise<AgentScanResult | null> {
   const availMarker = perf.start(`agent:${agent.name}:isAvailable`);
   const isAvail = agent.isAvailable();
@@ -212,7 +212,7 @@ async function scanAgentFull(
     // 保存到缓存
     saveCachedSessions(agent.name, heads, meta);
 
-    onProgress?.({ agent: agent.name, phase: 'complete', newCount: heads.length });
+    onProgress?.({ agent: agent.name, phase: "complete", newCount: heads.length });
 
     const filtered = filterSessions(heads, options);
     return { agent, heads: filtered, fromCache: false };
@@ -227,7 +227,7 @@ async function scanAgentFull(
  */
 export async function scanSessions(
   options: ScanOptions = {},
-  onProgress?: (progress: ScanProgress) => void
+  onProgress?: (progress: ScanProgress) => void,
 ): Promise<ScanResult> {
   const scanMarker = perf.start("scanSessions");
   const agents = createRegisteredAgents();
@@ -248,9 +248,7 @@ export async function scanSessions(
   });
 
   // 并行扫描所有 Agent
-  const scanPromises = agentsToScan.map((agent) =>
-    scanAgentSmart(agent, options, onProgress)
-  );
+  const scanPromises = agentsToScan.map((agent) => scanAgentSmart(agent, options, onProgress));
 
   const results = await Promise.all(scanPromises);
 
@@ -272,7 +270,7 @@ export async function scanSessions(
  */
 export async function scanSessionsAsync(
   options: ScanOptions = {},
-  onProgress?: (progress: ScanProgress) => void
+  onProgress?: (progress: ScanProgress) => void,
 ): Promise<ScanResult> {
   return scanSessions(options, onProgress);
 }

@@ -1,7 +1,13 @@
 import { defineCommand, runMain } from "citty";
 import { createServer } from "./server.js";
 import { printScanResults } from "./output.js";
-import { scanSessionsAsync, createRegisteredAgents, getAgentInfoMap, type ScanOptions, perf } from "@agent-lens/core";
+import {
+  scanSessionsAsync,
+  createRegisteredAgents,
+  getAgentInfoMap,
+  type ScanOptions,
+  perf,
+} from "@agent-lens/core";
 
 const VERSION = "0.1.0";
 
@@ -117,7 +123,7 @@ const main = defineCommand({
 
     // Resolve cwd filter: '.' => process.cwd()
     let cwdFilter = args.cwd as string | undefined;
-    if (cwdFilter === '.') {
+    if (cwdFilter === ".") {
       cwdFilter = process.cwd();
     }
 
@@ -154,12 +160,15 @@ const main = defineCommand({
 
     if (jsonOnly) {
       const info = getAgentInfoMap(
-        Object.fromEntries(
-          Object.entries(result.byAgent).map(([k, v]) => [k, v.length]),
-        ),
+        Object.fromEntries(Object.entries(result.byAgent).map(([k, v]) => [k, v.length])),
       );
       const output = {
-        agents: info.map(({ name, displayName, count }) => ({ name, displayName, count, available: count > 0 })),
+        agents: info.map(({ name, displayName, count }) => ({
+          name,
+          displayName,
+          count,
+          available: count > 0,
+        })),
         sessions: result.sessions,
       };
       console.log(JSON.stringify(output, null, 2));
@@ -186,7 +195,7 @@ const main = defineCommand({
   },
 });
 
-if (process.argv.slice(2).includes('-v')) {
+if (process.argv.slice(2).includes("-v")) {
   console.log(VERSION);
   process.exit(0);
 }
