@@ -190,6 +190,9 @@ pnpm format:check
 pnpm test
 pnpm test:watch
 pnpm test:coverage
+
+# Deploy landing page to Cloudflare Pages
+pnpm --filter @agent-lens/www deploy
 ```
 
 ### Dev Workflow (watch mode)
