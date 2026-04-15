@@ -33,7 +33,7 @@ export function Header() {
             GitHub
           </a>
           <span className="console-mono rounded-sm border border-[var(--console-border)] bg-[var(--console-surface-muted)] px-2 py-1 text-[10px] font-semibold text-[var(--console-muted)]">
-            v0.1.0
+            v0.1.1
           </span>
         </nav>
       </div>
