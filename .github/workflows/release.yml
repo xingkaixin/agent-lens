@@ -37,6 +37,11 @@ jobs:
         env:
           BUNDLE_CORE: true
 
+      # Remove workspace-only deps from published package.json
+      - name: Remove @agent-lens/core from dependencies
+        working-directory: packages/cli
+        run: node -e "const p=require('./package.json');delete p.dependencies['@agent-lens/core'];require('fs').writeFileSync('./package.json',JSON.stringify(p,null,2)+'\n')"
+
       - name: Publish to npm
         run: npm publish --provenance --access public
         working-directory: packages/cli
