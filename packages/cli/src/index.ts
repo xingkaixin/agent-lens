@@ -9,7 +9,7 @@ import {
   perf,
 } from "@codesesh/core";
 
-const VERSION = "0.1.0";
+const VERSION = "0.1.1";
 
 function parseDateToTimestamp(dateStr: string): number {
   const date = new Date(dateStr);

@@ -12,7 +12,7 @@ function findWebDistPath(): string | null {
   const __dirname = dirname(fileURLToPath(import.meta.url));
 
   // Priority 1: Packaged web dist (copied during build)
-  const packagedPath = resolve(__dirname, "../web");
+  const packagedPath = resolve(__dirname, "web");
   if (existsSync(packagedPath)) {
     return packagedPath;
   }
