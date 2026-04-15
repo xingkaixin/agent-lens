@@ -1,3 +1,4 @@
+import { resolve } from "node:path";
 import type { SessionHead } from "../types/index.js";
 import type { BaseAgent } from "../agents/index.js";
 import { createRegisteredAgents } from "../agents/index.js";
@@ -19,12 +20,26 @@ export interface ScanResult {
   agents: BaseAgent[];
 }
 
+/**
+ * Bidirectional path scope match (mirrors agent-dump's is_path_scope_match).
+ * Matches when:
+ *   - paths are equal
+ *   - queryPath is a parent of sessionPath  (session is inside the queried project)
+ *   - sessionPath is a parent of queryPath  (session root contains the queried path)
+ */
+function isPathScopeMatch(queryPath: string, sessionPath: string): boolean {
+  if (!sessionPath) return false;
+  const q = resolve(queryPath);
+  const s = resolve(sessionPath);
+  return s === q || s.startsWith(q + "/") || q.startsWith(s + "/");
+}
+
 function filterSessions(sessions: SessionHead[], options: ScanOptions): SessionHead[] {
   let result = sessions;
 
   if (options.cwd) {
-    const cwd = options.cwd.toLowerCase();
-    result = result.filter((s) => s.directory.toLowerCase().includes(cwd));
+    const cwd = options.cwd;
+    result = result.filter((s) => isPathScopeMatch(cwd, s.directory));
   }
 
   if (options.from != null) {

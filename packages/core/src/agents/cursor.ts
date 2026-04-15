@@ -1,10 +1,9 @@
-import { existsSync } from "node:fs";
+import { existsSync, readdirSync, readFileSync, statSync } from "node:fs";
 import { join } from "node:path";
 import { BaseAgent } from "./base.js";
 import type { SessionHead, SessionData, Message, MessagePart } from "../types/index.js";
 import { getCursorDataPath } from "../discovery/paths.js";
 import { openDbReadOnly, isSqliteAvailable, type SQLiteDatabase } from "../utils/sqlite.js";
-// basenameTitle not used currently
 
 // ---------------------------------------------------------------------------
 // Cursor data model interfaces
@@ -259,6 +258,93 @@ export class CursorAgent extends BaseAgent {
     return join(dataPath, "globalStorage", "state.vscdb");
   }
 
+  /**
+   * Build a map of composerId → workspace folder path by reading
+   * workspaceStorage/{id}/workspace.json and the corresponding state.vscdb.
+   */
+  private buildWorkspacePathMap(): Map<string, string> {
+    const map = new Map<string, string>();
+    const dataPath = getCursorDataPath();
+    if (!dataPath) return map;
+
+    const wsStoragePath = join(dataPath, "workspaceStorage");
+    if (!existsSync(wsStoragePath)) return map;
+
+    let entryNames: string[];
+    try {
+      entryNames = readdirSync(wsStoragePath) as string[];
+    } catch {
+      return map;
+    }
+
+    for (const name of entryNames) {
+      const wsDir = join(wsStoragePath, name);
+      try {
+        if (!statSync(wsDir).isDirectory()) continue;
+      } catch {
+        continue;
+      }
+      const wsJsonPath = join(wsDir, "workspace.json");
+      if (!existsSync(wsJsonPath)) continue;
+
+      // Parse workspace.json to get the project folder path
+      let workspacePath: string;
+      try {
+        const data = JSON.parse(readFileSync(wsJsonPath, "utf-8")) as {
+          folder?: string;
+          workspace?: string;
+        };
+        const uri = data.folder ?? data.workspace ?? "";
+        if (!uri) continue;
+        workspacePath = decodeURIComponent(uri.replace(/^file:\/\//, ""));
+      } catch {
+        continue;
+      }
+
+      // Read composer IDs from this workspace's state.vscdb (ItemTable)
+      const wsDbPath = join(wsDir, "state.vscdb");
+      if (!existsSync(wsDbPath)) continue;
+
+      const wsDb = openDbReadOnly(wsDbPath);
+      if (!wsDb) continue;
+
+      try {
+        const row = wsDb
+          .prepare("SELECT value FROM ItemTable WHERE key = 'composer.composerData'")
+          .get() as { value: string } | undefined;
+        if (!row?.value) continue;
+
+        const parsed = JSON.parse(row.value) as unknown;
+        let composers: Array<{ composerId?: string; id?: string }>;
+
+        if (
+          parsed !== null &&
+          typeof parsed === "object" &&
+          "allComposers" in (parsed as Record<string, unknown>) &&
+          Array.isArray((parsed as Record<string, unknown>)["allComposers"])
+        ) {
+          composers = (parsed as { allComposers: Array<{ composerId?: string; id?: string }> })
+            .allComposers;
+        } else if (Array.isArray(parsed)) {
+          composers = parsed as Array<{ composerId?: string; id?: string }>;
+        } else {
+          continue;
+        }
+
+        for (const c of composers) {
+          const id = c.composerId ?? c.id;
+          if (id) map.set(id, workspacePath);
+        }
+      } catch {
+        // skip unreadable workspace db
+      } finally {
+        wsDb.close();
+      }
+    }
+
+    return map;
+  }
+
   isAvailable(): boolean {
     this.dbPath = this.findDbPath();
     return this.dbPath !== null && existsSync(this.dbPath);
@@ -269,6 +355,9 @@ export class CursorAgent extends BaseAgent {
 
     const db = this.openDatabase();
     if (!db) return [];
+
+    // Build composerId → workspace path map from workspaceStorage
+    const workspacePathMap = this.buildWorkspacePathMap();
 
     try {
       const rows = db
@@ -295,11 +384,13 @@ export class CursorAgent extends BaseAgent {
           // Count messages from bubbles
           const messageCount = this.countMessagesFromBubbles(db, composerId);
 
+          const directory = workspacePathMap.get(composerId) ?? "";
+
           heads.push({
             id: sessionId,
             slug: `cursor/${sessionId}`,
             title,
-            directory: "",
+            directory,
             time_created: createdAt,
             time_updated: updatedAt || undefined,
             stats: {
@@ -312,8 +403,11 @@ export class CursorAgent extends BaseAgent {
 
           // Cache with sessionId (requestId) as key
           this.composerCache.set(sessionId, composer);
-          // Also cache composerId -> sessionId mapping for lookups
+          // Also cache composerId -> sessionId mapping and directory
           this.composerCache.set(`__mapping__${composerId}`, { sessionId } as unknown as ComposerData);
+          if (directory) {
+            this.composerCache.set(`__dir__${composerId}`, { directory } as unknown as ComposerData);
+          }
         } catch {
           // skip malformed entries
         }
@@ -388,11 +482,18 @@ export class CursorAgent extends BaseAgent {
       // Append subagent messages
       this.appendSubagentMessages(db, composer, messages);
 
+      // Retrieve directory from cache (populated during scan) or build map on demand
+      const cachedDir = this.composerCache.get(`__dir__${composerId}`);
+      const directory =
+        (cachedDir as unknown as { directory?: string })?.directory ??
+        this.buildWorkspacePathMap().get(composerId) ??
+        "";
+
       return {
         id: resolvedSessionId,
         title,
         slug: `cursor/${resolvedSessionId}`,
-        directory: "",
+        directory,
         time_created: createdAt,
         time_updated: updatedAt || undefined,
         stats: {

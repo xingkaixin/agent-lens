@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState, type ReactNode } from "react";
+import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { Link, useLocation } from "react-router-dom";
 import { ModelConfig } from "./config";
 import type { AgentInfo, SessionHead, SessionData } from "./lib/api";
@@ -122,6 +122,43 @@ export default function App() {
 
   const activeAgentKey = viewState.activeAgentKey;
   const sidebarSessions = activeAgentKey ? sessionsByAgent[activeAgentKey] ?? [] : [];
+
+  // Group sidebar sessions by last cwd component (file-tree style)
+  type SessionGroup = { key: string; label: string; sessions: typeof sidebarSessions };
+  const sidebarGroups = useMemo<SessionGroup[]>(() => {
+    const map = new Map<string, SessionGroup>();
+    for (const s of sidebarSessions) {
+      const dir = s.directory ?? "";
+      const label = dir
+        ? dir.replace(/\/+$/, "").split("/").at(-1) ?? dir
+        : "(unknown)";
+      const groupKey = label !== "(unknown)" ? label : "__unknown__";
+      if (!map.has(groupKey)) map.set(groupKey, { key: groupKey, label, sessions: [] });
+      map.get(groupKey)!.sessions.push(s);
+    }
+    return [...map.values()].sort((a, b) => {
+      if (a.key === "__unknown__") return 1;
+      if (b.key === "__unknown__") return -1;
+      return a.label.localeCompare(b.label);
+    });
+  }, [sidebarSessions]);
+
+  // All groups open by default; track collapsed groups
+  const initializedRef = useRef(false);
+  const [collapsedGroups, setCollapsedGroups] = useState<Set<string>>(new Set());
+  // Reset collapsed state when agent changes
+  useEffect(() => {
+    if (!initializedRef.current) { initializedRef.current = true; return; }
+    setCollapsedGroups(new Set());
+  }, [activeAgentKey]);
+
+  function toggleGroup(key: string) {
+    setCollapsedGroups((prev) => {
+      const next = new Set(prev);
+      if (next.has(key)) next.delete(key); else next.add(key);
+      return next;
+    });
+  }
 
   // Load session detail
   useEffect(() => {
@@ -320,40 +357,60 @@ export default function App() {
               <h3 className="console-mono mb-3 text-xs font-bold uppercase text-[var(--console-text)]">
                 SESSIONS
               </h3>
-              <ul className="space-y-1">
-                {!activeAgentKey ? (
-                  <li>
-                    <span className="console-mono block rounded-sm px-3 py-1.5 text-xs text-[var(--console-muted)]">
-                      Select an agent
-                    </span>
-                  </li>
-                ) : sidebarSessions.length === 0 ? (
-                  <li>
-                    <span className="console-mono block rounded-sm px-3 py-1.5 text-xs text-[var(--console-muted)]">
-                      No sessions yet
-                    </span>
-                  </li>
-                ) : (
-                  sidebarSessions.map((item) => {
-                    const isActive = viewState.mode === "session" && viewState.activeSessionSlug === item.id;
+              {!activeAgentKey ? (
+                <span className="console-mono block rounded-sm px-3 py-1.5 text-xs text-[var(--console-muted)]">
+                  Select an agent
+                </span>
+              ) : sidebarSessions.length === 0 ? (
+                <span className="console-mono block rounded-sm px-3 py-1.5 text-xs text-[var(--console-muted)]">
+                  No sessions yet
+                </span>
+              ) : (
+                <div className="space-y-2">
+                  {sidebarGroups.map((group) => {
+                    const isCollapsed = collapsedGroups.has(group.key);
                     return (
-                      <li key={item.id}>
-                        <Link
-                          to={`/${activeAgentKey}/${item.id}`}
-                          className={`console-mono relative block rounded-sm border px-3 py-1.5 text-xs transition-colors ${
-                            isActive
-                              ? "border-[var(--console-border-strong)] bg-white text-[var(--console-text)] before:absolute before:bottom-0 before:left-0 before:top-0 before:w-0.5 before:bg-[var(--console-accent)]"
-                              : "border-transparent text-[var(--console-muted)] hover:border-[var(--console-border)] hover:bg-[var(--console-surface-muted)]"
-                          }`}
-                          title={item.title}
+                      <div key={group.key}>
+                        {/* Folder header */}
+                        <button
+                          onClick={() => toggleGroup(group.key)}
+                          className="console-mono flex w-full items-center gap-1.5 rounded-sm px-2 py-1 text-left text-xs text-[var(--console-muted)] hover:bg-[var(--console-surface-muted)]"
+                          title={group.key === "__unknown__" ? undefined : group.key}
                         >
-                          <span className="line-clamp-1">{item.title}</span>
-                        </Link>
-                      </li>
+                          <span className="shrink-0 text-[10px]">{isCollapsed ? "▶" : "▼"}</span>
+                          <span className="line-clamp-1 font-semibold">{group.label}</span>
+                          <span className="ml-auto shrink-0 text-[11px]">{group.sessions.length}</span>
+                        </button>
+                        {/* Sessions under this folder */}
+                        {!isCollapsed && (
+                          <ul className="mt-0.5 space-y-0.5 pl-3">
+                            {group.sessions.map((item) => {
+                              const isActive =
+                                viewState.mode === "session" &&
+                                viewState.activeSessionSlug === item.id;
+                              return (
+                                <li key={item.id}>
+                                  <Link
+                                    to={`/${activeAgentKey}/${item.id}`}
+                                    className={`console-mono relative block rounded-sm border px-2 py-1.5 text-xs transition-colors ${
+                                      isActive
+                                        ? "border-[var(--console-border-strong)] bg-white text-[var(--console-text)] before:absolute before:bottom-0 before:left-0 before:top-0 before:w-0.5 before:bg-[var(--console-accent)]"
+                                        : "border-transparent text-[var(--console-muted)] hover:border-[var(--console-border)] hover:bg-[var(--console-surface-muted)]"
+                                    }`}
+                                    title={item.title}
+                                  >
+                                    <span className="line-clamp-1">{item.title}</span>
+                                  </Link>
+                                </li>
+                              );
+                            })}
+                          </ul>
+                        )}
+                      </div>
                     );
-                  })
-                )}
-              </ul>
+                  })}
+                </div>
+              )}
             </section>
           </div>
         </aside>

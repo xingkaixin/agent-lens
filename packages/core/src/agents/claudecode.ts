@@ -1,7 +1,7 @@
 import { existsSync, readdirSync, readFileSync, statSync } from "node:fs";
 import { join, basename } from "node:path";
 import { BaseAgent } from "./base.js";
-import type { SessionHead, SessionData, Message, MessagePart, SessionStats } from "../types/index.js";
+import type { SessionHead, SessionData, Message, MessagePart } from "../types/index.js";
 import { resolveProviderRoots, firstExisting } from "../discovery/paths.js";
 import { parseJsonlLines } from "../utils/jsonl.js";
 import { resolveSessionTitle, basenameTitle } from "../utils/title-fallback.js";
@@ -225,24 +225,22 @@ export class ClaudeCodeAgent extends BaseAgent {
       ? String(indexEntry.summary)
       : null;
 
-    // Extract first user message as fallback title
-    const messageTitle = this.extractTitle(lines);
-    const directoryTitle = basenameTitle(
-      firstRecord["cwd"] ? String(firstRecord["cwd"]) : null,
-    ) || basenameTitle(projectDir);
-
-    const title = resolveSessionTitle(explicitTitle, messageTitle, directoryTitle);
-
-    // Extract lightweight metadata
+    // Extract lightweight metadata; cwd lives in user-type records, not the first line
     let updatedAt = createdAt;
     let messageCount = 0;
     let model: string | null = null;
+    let cwd: string | null = null;
 
     for (const line of lines) {
       try {
         const data = JSON.parse(line);
         const ts = parseTimestampMs(data);
         if (ts > updatedAt) updatedAt = ts;
+
+        // cwd is a top-level field on user records
+        if (!cwd && data["cwd"] && typeof data["cwd"] === "string") {
+          cwd = data["cwd"];
+        }
 
         const msg = data["message"];
         if (msg && typeof msg === "object") {
@@ -260,9 +258,13 @@ export class ClaudeCodeAgent extends BaseAgent {
       }
     }
 
-    const directory = firstRecord["cwd"]
-      ? String(firstRecord["cwd"])
-      : projectDir;
+    const directory = cwd ?? projectDir;
+
+    // Extract first user message as fallback title
+    const messageTitle = this.extractTitle(lines);
+    const directoryTitle = basenameTitle(directory) || basenameTitle(projectDir);
+
+    const title = resolveSessionTitle(explicitTitle, messageTitle, directoryTitle);
 
     return {
       id: sessionId,
