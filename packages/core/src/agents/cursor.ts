@@ -4,7 +4,7 @@ import { BaseAgent } from "./base.js";
 import type { SessionHead, SessionData, Message, MessagePart } from "../types/index.js";
 import { getCursorDataPath } from "../discovery/paths.js";
 import { openDbReadOnly, isSqliteAvailable, type SQLiteDatabase } from "../utils/sqlite.js";
-import { resolveSessionTitle, basenameTitle } from "../utils/title-fallback.js";
+// basenameTitle not used currently
 
 // ---------------------------------------------------------------------------
 // Cursor data model interfaces
@@ -14,13 +14,55 @@ interface ComposerData {
   id?: string;
   composerId?: string;
   text?: string;
+  name?: string;
+  title?: string;
   createdAt?: number;
   updatedAt?: number;
+  lastSendTime?: number;
+  lastUpdatedAt?: number;
   model?: string;
+  modelConfig?: { modelName?: string };
   inputTokenCount?: number;
   outputTokenCount?: number;
   subagentInfos?: SubagentInfo[];
   chatMessages?: ChatMessage[];
+  usageData?: {
+    contextTokensUsed?: number;
+    contextTokenLimit?: number;
+    contextUsagePercent?: number;
+  };
+}
+
+interface BubbleData {
+  id?: string;
+  composerId?: string;
+  chatMessages?: ChatMessage[];
+  type?: number; // 1 = user, 2 = assistant
+  text?: string;
+  requestId?: string;
+  createdAt?: number;
+  timestamp?: number;
+  timingInfo?: {
+    clientRpcSendTime?: number;
+    clientSettleTime?: number;
+    clientEndTime?: number;
+  };
+  tokenCount?: {
+    inputTokens?: number;
+    outputTokens?: number;
+  };
+  modelInfo?: {
+    modelName?: string;
+  };
+  toolFormerData?: {
+    name?: string;
+    toolCallId?: string;
+    status?: string;
+    params?: unknown;
+    result?: unknown;
+    additionalData?: Record<string, unknown>;
+  };
+  [key: string]: unknown;
 }
 
 interface SubagentInfo {
@@ -49,12 +91,6 @@ interface ActionEntry {
   [key: string]: unknown;
 }
 
-interface BubbleData {
-  id?: string;
-  composerId?: string;
-  chatMessages?: ChatMessage[];
-  [key: string]: unknown;
-}
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -70,11 +106,6 @@ const CURSOR_TOOL_TITLE_MAP: Record<string, string> = {
 
 function mapToolTitle(toolName: string): string {
   return CURSOR_TOOL_TITLE_MAP[toolName] ?? toolName;
-}
-
-function normalizeTitleText(text: string): string {
-  const line = text.split("\n").find((l) => l.trim());
-  return line?.trim().slice(0, 80) || "";
 }
 
 /** Normalize tool output into MessagePart[] */
@@ -251,21 +282,22 @@ export class CursorAgent extends BaseAgent {
           const composer = JSON.parse(row.value) as ComposerData;
           if (!composer.id && !composer.composerId) continue;
 
-          const id = composer.id || composer.composerId || "";
-          const text = composer.text?.trim() || null;
-          const title = resolveSessionTitle(text, null, null);
+          const composerId = composer.id || composer.composerId || "";
+
+          // Try to extract requestId from bubbles (like agent-dump does)
+          const requestId = this.extractRequestIdFromBubbles(db, composerId);
+          const sessionId = requestId || composerId;
+
+          const title = this.extractTitle(composer);
           const createdAt = composer.createdAt ?? 0;
           const updatedAt = composer.updatedAt ?? createdAt;
 
-          // Count messages from chatMessages array if available
-          let messageCount = 0;
-          if (Array.isArray(composer.chatMessages)) {
-            messageCount = composer.chatMessages.length;
-          }
+          // Count messages from bubbles
+          const messageCount = this.countMessagesFromBubbles(db, composerId);
 
           heads.push({
-            id,
-            slug: `cursor/${id}`,
+            id: sessionId,
+            slug: `cursor/${sessionId}`,
             title,
             directory: "",
             time_created: createdAt,
@@ -278,7 +310,10 @@ export class CursorAgent extends BaseAgent {
             },
           });
 
-          this.composerCache.set(id, composer);
+          // Cache with sessionId (requestId) as key
+          this.composerCache.set(sessionId, composer);
+          // Also cache composerId -> sessionId mapping for lookups
+          this.composerCache.set(`__mapping__${composerId}`, { sessionId } as unknown as ComposerData);
         } catch {
           // skip malformed entries
         }
@@ -309,22 +344,33 @@ export class CursorAgent extends BaseAgent {
     try {
       // Try cached composer data first
       let composer = this.composerCache.get(sessionId);
+      let resolvedSessionId = sessionId;
+
       if (!composer) {
+        // Try loading directly by sessionId (might be composerId)
         composer = this.loadComposer(db, sessionId) ?? undefined;
+      }
+
+      if (!composer) {
+        // sessionId might be a requestId - try to find the composer
+        const composerId = this.findComposerIdByRequestId(db, sessionId);
+        if (composerId) {
+          composer = this.loadComposer(db, composerId) ?? undefined;
+          resolvedSessionId = sessionId; // Keep the requestId as sessionId
+        }
       }
 
       if (!composer) {
         throw new Error(`Session not found: ${sessionId}`);
       }
 
-      const id = composer.id || composer.composerId || "";
-      const text = composer.text?.trim() || null;
-      const title = resolveSessionTitle(text, null, null);
+      const composerId = composer.id || composer.composerId || "";
+      const title = this.extractTitle(composer);
       const createdAt = composer.createdAt ?? 0;
       const updatedAt = composer.updatedAt ?? createdAt;
 
-      // Load messages: prefer chatMessages from composer, fallback to bubble
-      const messages = this.loadMessages(db, composer);
+      // Load messages from bubbles (like agent-dump does)
+      const messages = this.loadMessagesFromBubbles(db, composerId, resolvedSessionId);
 
       // Aggregate stats
       let totalInputTokens = 0;
@@ -343,9 +389,9 @@ export class CursorAgent extends BaseAgent {
       this.appendSubagentMessages(db, composer, messages);
 
       return {
-        id,
+        id: resolvedSessionId,
         title,
-        slug: `cursor/${id}`,
+        slug: `cursor/${resolvedSessionId}`,
         directory: "",
         time_created: createdAt,
         time_updated: updatedAt || undefined,
@@ -367,6 +413,250 @@ export class CursorAgent extends BaseAgent {
   private openDatabase(): SQLiteDatabase | null {
     if (!this.dbPath) return null;
     return openDbReadOnly(this.dbPath);
+  }
+
+  /** Extract requestId from bubbles for a composer (like agent-dump) */
+  private extractRequestIdFromBubbles(db: SQLiteDatabase, composerId: string): string | null {
+    try {
+      const rows = db
+        .prepare("SELECT value FROM cursorDiskKV WHERE key LIKE ? ORDER BY key")
+        .all(`bubbleId:${composerId}:%`) as Array<{ value: string }>;
+
+      for (const row of rows) {
+        try {
+          const bubble = JSON.parse(row.value) as BubbleData;
+          if (bubble.requestId && typeof bubble.requestId === "string" && bubble.requestId.trim()) {
+            return bubble.requestId.trim();
+          }
+        } catch {
+          // skip malformed bubbles
+        }
+      }
+    } catch {
+      // ignore errors
+    }
+    return null;
+  }
+
+  /** Find composerId by requestId (reverse lookup) */
+  private findComposerIdByRequestId(db: SQLiteDatabase, requestId: string): string | null {
+    try {
+      const rows = db
+        .prepare("SELECT key, value FROM cursorDiskKV WHERE key LIKE 'bubbleId:%' AND value LIKE ?")
+        .all(`%"requestId":"${requestId}"%`) as Array<{ key: string; value: string }>;
+
+      for (const row of rows) {
+        try {
+          const bubble = JSON.parse(row.value) as BubbleData;
+          if (bubble.requestId === requestId) {
+            // Extract composerId from key (bubbleId:{composerId}:{bubbleId})
+            const keyParts = row.key.split(":");
+            if (keyParts.length >= 2 && keyParts[1]) {
+              return keyParts[1];
+            }
+          }
+        } catch {
+          // skip malformed bubbles
+        }
+      }
+    } catch {
+      // ignore errors
+    }
+    return null;
+  }
+
+  /** Extract title from composer (like agent-dump) */
+  private extractTitle(composer: ComposerData): string {
+    if (composer.name && typeof composer.name === "string" && composer.name.trim()) {
+      return composer.name.trim();
+    }
+    if (composer.title && typeof composer.title === "string" && composer.title.trim()) {
+      return composer.title.trim();
+    }
+    if (composer.text && typeof composer.text === "string" && composer.text.trim()) {
+      const firstLine = composer.text.split("\n").find((l) => l.trim())?.trim().slice(0, 80);
+      if (firstLine) return firstLine;
+    }
+    const composerId = composer.composerId || composer.id || "";
+    return `Cursor Session ${composerId.slice(0, 8)}`;
+  }
+
+  /** Count messages from bubbles */
+  private countMessagesFromBubbles(db: SQLiteDatabase, composerId: string): number {
+    try {
+      const rows = db
+        .prepare("SELECT value FROM cursorDiskKV WHERE key LIKE ?")
+        .all(`bubbleId:${composerId}:%`) as Array<{ value: string }>;
+
+      let count = 0;
+      for (const row of rows) {
+        try {
+          const bubble = JSON.parse(row.value) as BubbleData;
+          // type 1 = user, type 2 = assistant
+          if (bubble.type === 1 || bubble.type === 2) {
+            count++;
+          }
+        } catch {
+          // skip malformed bubbles
+        }
+      }
+      return count;
+    } catch {
+      return 0;
+    }
+  }
+
+  /** Load messages from bubbles (like agent-dump) */
+  private loadMessagesFromBubbles(db: SQLiteDatabase, composerId: string, _sessionId: string): Message[] {
+    const messages: Message[] = [];
+
+    try {
+      const rows = db
+        .prepare("SELECT key, value FROM cursorDiskKV WHERE key LIKE ? ORDER BY rowid ASC")
+        .all(`bubbleId:${composerId}:%`) as Array<{ key: string; value: string }>;
+
+      let activeModelName: string | null = null;
+      let messageIndex = 0;
+
+      for (const row of rows) {
+        try {
+          const bubble = JSON.parse(row.value) as BubbleData;
+          const bubbleId = row.key.split(":").pop() || String(messageIndex);
+
+          // Determine role: type 2 = assistant, otherwise user
+          const role = bubble.type === 2 ? "assistant" : "user";
+
+          // Extract timestamp
+          let timestampMs = 0;
+          if (bubble.timingInfo?.clientRpcSendTime) {
+            timestampMs = Math.floor(bubble.timingInfo.clientRpcSendTime);
+          } else if (bubble.createdAt) {
+            timestampMs = bubble.createdAt;
+          } else if (bubble.timestamp) {
+            timestampMs = bubble.timestamp;
+          }
+
+          // Track model from user turn
+          if (role === "user" && bubble.modelInfo?.modelName) {
+            activeModelName = bubble.modelInfo.modelName;
+          }
+
+          // Extract tokens
+          const inputTokens = bubble.tokenCount?.inputTokens ?? 0;
+          const outputTokens = bubble.tokenCount?.outputTokens ?? 0;
+
+          // Build message parts
+          const parts: MessagePart[] = [];
+
+          // Text content
+          const text = bubble.text?.trim();
+          if (text) {
+            parts.push({ type: "text", text, time_created: timestampMs });
+          }
+
+          // Tool calls from toolFormerData
+          if (bubble.toolFormerData) {
+            const toolPart = this.convertToolFormerData(bubble.toolFormerData, timestampMs);
+            if (toolPart) {
+              parts.push(toolPart);
+            }
+          }
+
+          // Skip empty messages
+          if (parts.length === 0) continue;
+
+          messages.push({
+            id: `cursor-${composerId}-${bubbleId}`,
+            role: role as Message["role"],
+            agent: "cursor",
+            time_created: timestampMs,
+            time_completed: null,
+            mode: role === "assistant" && parts.some((p) => p.type === "tool") ? "tool" : null,
+            model: activeModelName,
+            provider: null,
+            tokens: { input: inputTokens, output: outputTokens },
+            cost: 0,
+            parts,
+          });
+
+          messageIndex++;
+        } catch {
+          // skip malformed bubbles
+        }
+      }
+    } catch {
+      // ignore errors
+    }
+
+    return messages;
+  }
+
+  /** Convert toolFormerData to MessagePart */
+  private convertToolFormerData(toolData: BubbleData["toolFormerData"], timestampMs: number): MessagePart | null {
+    if (!toolData || !toolData.name) return null;
+
+    const toolName = toolData.name;
+    const normalizedName = toolName === "create_plan" ? "plan" : mapToolTitle(toolName);
+
+    // Build state
+    const state: MessagePart["state"] = {
+      status: toolData.status === "completed" ? "completed" : "running",
+    };
+
+    // Parse input params
+    if (toolData.params) {
+      if (typeof toolData.params === "string") {
+        try {
+          state.input = JSON.parse(toolData.params);
+        } catch {
+          state.input = { _raw: toolData.params };
+        }
+      } else {
+        state.input = toolData.params;
+      }
+    }
+
+    // Parse result/output
+    if (toolData.result !== undefined) {
+      if (typeof toolData.result === "string") {
+        try {
+          const parsed = JSON.parse(toolData.result);
+          state.output = parsed;
+          if (parsed.error || parsed.message || parsed.stderr) {
+            state.error = parsed.error || parsed.message || parsed.stderr;
+            state.status = "error";
+          }
+        } catch {
+          state.output = toolData.result;
+        }
+      } else {
+        state.output = toolData.result;
+      }
+    }
+
+    // Handle plan tool specially
+    if (toolName === "create_plan") {
+      const planText = typeof state.input === "object" && state.input !== null
+        ? (state.input as Record<string, unknown>).plan
+        : undefined;
+      return {
+        type: "plan",
+        title: "Plan",
+        input: planText,
+        approval_status: state.status === "completed" ? "success" : "fail",
+        state,
+        time_created: timestampMs,
+      };
+    }
+
+    return {
+      type: "tool",
+      tool: normalizedName,
+      callID: toolData.toolCallId || "",
+      title: `Tool: ${toolName}`,
+      state,
+      time_created: timestampMs,
+    };
   }
 
   private loadComposer(db: SQLiteDatabase, sessionId: string): ComposerData | null {
@@ -395,77 +685,6 @@ export class CursorAgent extends BaseAgent {
     } catch {
       return null;
     }
-  }
-
-  private loadMessages(db: SQLiteDatabase, composer: ComposerData): Message[] {
-    const messages: Message[] = [];
-    let messageIndex = 0;
-
-    // Primary source: chatMessages array in composer data
-    const chatMessages = composer.chatMessages;
-    if (Array.isArray(chatMessages) && chatMessages.length > 0) {
-      for (const chatMsg of chatMessages) {
-        const msg = this.convertChatMessage(chatMsg, messageIndex);
-        if (msg) {
-          messages.push(msg);
-          messageIndex++;
-        }
-      }
-      return messages;
-    }
-
-    // Fallback: load from bubble
-    const bubble = composer.id ? this.loadBubble(db, composer.id) : null;
-    if (bubble && Array.isArray(bubble.chatMessages)) {
-      for (const chatMsg of bubble.chatMessages) {
-        const msg = this.convertChatMessage(chatMsg, messageIndex);
-        if (msg) {
-          messages.push(msg);
-          messageIndex++;
-        }
-      }
-    }
-
-    return messages;
-  }
-
-  private convertChatMessage(chatMsg: ChatMessage, index: number): Message | null {
-    const role = chatMsg.role?.trim().toLowerCase();
-    if (role !== "user" && role !== "assistant") return null;
-
-    const timestampMs = extractTimestamp(chatMsg);
-    const parts: MessagePart[] = [];
-
-    // Text content
-    const text = chatMsg.text ?? "";
-    if (text.trim()) {
-      parts.push({ type: "text", text, time_created: timestampMs });
-    }
-
-    // Tool calls embedded in assistant messages
-    if (role === "assistant" && Array.isArray(chatMsg.actions)) {
-      for (const action of chatMsg.actions) {
-        const part = convertActionToPart(action as ActionEntry, timestampMs);
-        if (part) parts.push(part);
-      }
-    }
-
-    // Skip empty messages
-    if (parts.length === 0) return null;
-
-    return {
-      id: `cursor-${composerIdFromChat(chatMsg, index)}`,
-      role: role as Message["role"],
-      agent: "cursor",
-      time_created: timestampMs,
-      time_completed: null,
-      mode: role === "assistant" && parts.some((p) => p.type === "tool") ? "tool" : null,
-      model: null,
-      provider: null,
-      tokens: undefined,
-      cost: 0,
-      parts,
-    };
   }
 
   private appendSubagentMessages(
@@ -521,16 +740,4 @@ export class CursorAgent extends BaseAgent {
       }
     }
   }
-}
-
-// ---------------------------------------------------------------------------
-// Module-level helpers
-// ---------------------------------------------------------------------------
-
-function composerIdFromChat(chatMsg: ChatMessage, index: number): string {
-  // Try to extract an id from the chat message if available
-  if (chatMsg.id && typeof chatMsg.id === "string") {
-    return chatMsg.id;
-  }
-  return String(index);
 }
