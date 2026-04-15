@@ -3,6 +3,8 @@ import { createServer } from "./server.js";
 import { printScanResults } from "./output.js";
 import { scanSessions, createRegisteredAgents, getAgentInfoMap, type ScanOptions } from "@agent-lens/core";
 
+const VERSION = "0.1.0";
+
 function parseDateToTimestamp(dateStr: string): number {
   const date = new Date(dateStr);
   if (Number.isNaN(date.getTime())) {
@@ -21,7 +23,7 @@ const main = defineCommand({
   meta: {
     name: "agent-lens",
     description: "Discover, aggregate, and visualize AI coding agent sessions",
-    version: "0.1.0",
+    version: VERSION,
   },
   args: {
     port: {
@@ -35,13 +37,19 @@ const main = defineCommand({
       alias: "a",
       description: "Filter to specific agent(s), comma-separated",
     },
+    days: {
+      type: "string",
+      alias: "d",
+      description: "Only include sessions from the last N days (0 = all time)",
+      default: "7",
+    },
     cwd: {
       type: "string",
-      description: "Filter to sessions from a specific project directory",
+      description: "Filter to sessions from a specific project directory (use '.' for current dir)",
     },
     from: {
       type: "string",
-      description: "Sessions created after this date (YYYY-MM-DD)",
+      description: "Sessions created after this date, YYYY-MM-DD (overrides --days)",
     },
     to: {
       type: "string",
@@ -79,6 +87,23 @@ const main = defineCommand({
       }
     }
 
+    // Resolve cwd filter: '.' => process.cwd()
+    let cwdFilter = args.cwd as string | undefined;
+    if (cwdFilter === '.') {
+      cwdFilter = process.cwd();
+    }
+
+    // Resolve from timestamp: --from takes priority over --days
+    let fromTimestamp: number | undefined;
+    if (args.from) {
+      fromTimestamp = parseDateToTimestamp(args.from as string);
+    } else {
+      const days = parseInt(args.days as string, 10);
+      if (!Number.isNaN(days) && days > 0) {
+        fromTimestamp = Date.now() - days * 24 * 60 * 60 * 1000;
+      }
+    }
+
     // Build scan options
     const scanOptions: ScanOptions = {
       agents: targetSession
@@ -86,8 +111,8 @@ const main = defineCommand({
         : args.agent
           ? (args.agent as string).split(",").map((a) => a.trim())
           : undefined,
-      cwd: args.cwd as string | undefined,
-      from: args.from ? parseDateToTimestamp(args.from as string) : undefined,
+      cwd: cwdFilter,
+      from: fromTimestamp,
       to: args.to ? parseDateToTimestamp(args.to as string) : undefined,
     };
 
@@ -127,5 +152,10 @@ const main = defineCommand({
     }
   },
 });
+
+if (process.argv.slice(2).includes('-v')) {
+  console.log(VERSION);
+  process.exit(0);
+}
 
 runMain(main);
