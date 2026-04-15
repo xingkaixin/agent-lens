@@ -1,0 +1,108 @@
+import type { Message, MessagePart } from "../../lib/api";
+import type { MessageBlock } from "./blocks";
+import { buildMessageBlocks } from "./blocks";
+
+export type TocFilterId = "user" | "agent_message" | "thinking" | "plan" | "tools_all";
+
+export interface ToolFilterItem {
+  id: `tool:${string}`;
+  toolKey: string;
+  label: string;
+  count: number;
+}
+
+export interface SessionDetailToc {
+  filterIds: Set<string>;
+  counts: Record<TocFilterId, number>;
+  tools: ToolFilterItem[];
+}
+
+export interface FilteredSessionMessage {
+  msg: Message;
+  blocks: MessageBlock[];
+}
+
+function buildToolLabel(part: MessagePart) {
+  if (typeof part.title === "string" && part.title.trim()) {
+    return part.title.trim().replace(/^tool:\s*/i, "");
+  }
+  if (typeof part.tool === "string" && part.tool.trim()) return part.tool.trim();
+  return "tool";
+}
+
+function normalizeToolKey(part: MessagePart) {
+  const raw = typeof part.tool === "string" && part.tool.trim() ? part.tool : buildToolLabel(part);
+  return raw.trim().toLowerCase();
+}
+
+function countToolPart(toolMap: Map<string, ToolFilterItem>, part: MessagePart) {
+  const key = normalizeToolKey(part);
+  const id = `tool:${key}` as const;
+  const cur = toolMap.get(key);
+  if (cur) {
+    cur.count += 1;
+    return;
+  }
+  toolMap.set(key, { id, toolKey: key, label: buildToolLabel(part), count: 1 });
+}
+
+export function buildSessionDetailToc(messages: Message[]): SessionDetailToc {
+  const counts: Record<TocFilterId, number> = { user: 0, agent_message: 0, thinking: 0, plan: 0, tools_all: 0 };
+  const filterIds = new Set<string>();
+  const toolMap = new Map<string, ToolFilterItem>();
+
+  for (const msg of messages) {
+    const blocks = buildMessageBlocks(msg.parts);
+    for (const block of blocks) {
+      if (msg.role === "user") { counts.user += 1; filterIds.add("user"); continue; }
+      if (block.type === "text") { counts.agent_message += 1; filterIds.add("agent_message"); continue; }
+      if (block.type === "reasoning") { counts.thinking += 1; filterIds.add("thinking"); continue; }
+      if (block.type === "plan") { counts.plan += 1; filterIds.add("plan"); continue; }
+
+      counts.tools_all += block.parts.length;
+      filterIds.add("tools_all");
+      for (const part of block.parts) {
+        countToolPart(toolMap, part);
+        filterIds.add(`tool:${normalizeToolKey(part)}`);
+      }
+    }
+  }
+
+  return {
+    filterIds,
+    counts,
+    tools: [...toolMap.values()].toSorted((a, b) => a.label.localeCompare(b.label)),
+  };
+}
+
+function isToolPartVisible(part: MessagePart, filters: Set<string>) {
+  if (!filters.has("tools_all")) return false;
+  return filters.has(`tool:${normalizeToolKey(part)}`);
+}
+
+function isBlockVisible(block: MessageBlock, msg: Message, filters: Set<string>) {
+  if (msg.role === "user") return filters.has("user");
+  if (block.type === "text") return filters.has("agent_message");
+  if (block.type === "reasoning") return filters.has("thinking");
+  if (block.type === "plan") return filters.has("plan");
+  return block.parts.some((p) => isToolPartVisible(p, filters));
+}
+
+function filterToolBlock(block: MessageBlock, filters: Set<string>): MessageBlock | null {
+  const parts = block.parts.filter((p) => isToolPartVisible(p, filters));
+  if (parts.length === 0) return null;
+  return { ...block, parts };
+}
+
+export function filterSessionMessages(messages: Message[], selectedFilters: Set<string>): FilteredSessionMessage[] {
+  return messages
+    .map((msg) => {
+      const blocks = buildMessageBlocks(msg.parts)
+        .filter((b) => isBlockVisible(b, msg, selectedFilters))
+        .map((b) => (b.type === "tool" ? filterToolBlock(b, selectedFilters) : b))
+        .filter((b): b is MessageBlock => b != null);
+      if (blocks.length === 0) return null;
+      return { msg, blocks };
+    })
+    .filter((item): item is FilteredSessionMessage => item != null);
+}

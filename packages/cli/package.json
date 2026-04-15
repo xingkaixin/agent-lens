@@ -1,0 +1,27 @@
+{
+  "name": "@agent-lens/cli",
+  "version": "0.1.0",
+  "type": "module",
+  "bin": {
+    "agent-lens": "dist/index.js"
+  },
+  "scripts": {
+    "build": "tsup && node scripts/copy-web-dist.js",
+    "dev": "tsup --watch",
+    "clean": "rm -rf dist",
+    "start": "node dist/index.js"
+  },
+  "dependencies": {
+    "@agent-lens/core": "workspace:*",
+    "@hono/node-server": "^1.14.0",
+    "consola": "^3.4.2",
+    "citty": "^0.1.6",
+    "hono": "^4.7.4",
+    "open": "^10.1.2"
+  },
+  "devDependencies": {
+    "@types/node": "^22.14.0",
+    "tsup": "^8.4.0",
+    "typescript": "^5.9.3"
+  }
+}

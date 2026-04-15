@@ -1,0 +1,302 @@
+@import "tailwindcss";
+
+@plugin "tailwindcss-animate";
+
+@custom-variant dark (&:is(.dark *));
+
+@theme {
+  --font-sans:
+    "Avenir Next", "PingFang SC", "Hiragino Sans GB", "Noto Sans SC", -apple-system, sans-serif;
+
+  --color-border: hsl(var(--border));
+  --color-input: hsl(var(--input));
+  --color-ring: hsl(var(--ring));
+  --color-background: hsl(var(--background));
+  --color-foreground: hsl(var(--foreground));
+
+  --color-primary: hsl(var(--primary));
+  --color-primary-foreground: hsl(var(--primary-foreground));
+
+  --color-secondary: hsl(var(--secondary));
+  --color-secondary-foreground: hsl(var(--secondary-foreground));
+
+  --color-destructive: hsl(var(--destructive));
+  --color-destructive-foreground: hsl(var(--destructive-foreground));
+
+  --color-muted: hsl(var(--muted));
+  --color-muted-foreground: hsl(var(--muted-foreground));
+
+  --color-accent: hsl(var(--accent));
+  --color-accent-foreground: hsl(var(--accent-foreground));
+
+  --color-popover: hsl(var(--popover));
+  --color-popover-foreground: hsl(var(--popover-foreground));
+
+  --color-card: hsl(var(--card));
+  --color-card-foreground: hsl(var(--card-foreground));
+
+  --radius-lg: var(--radius);
+  --radius-md: calc(var(--radius) - 2px);
+  --radius-sm: calc(var(--radius) - 4px);
+
+  --animate-accordion-down: accordion-down 0.2s ease-out;
+  --animate-accordion-up: accordion-up 0.2s ease-out;
+
+  @keyframes accordion-down {
+    from {
+      height: 0;
+    }
+
+    to {
+      height: var(--radix-accordion-content-height);
+    }
+  }
+
+  @keyframes accordion-up {
+    from {
+      height: var(--radix-accordion-content-height);
+    }
+
+    to {
+      height: 0;
+    }
+  }
+}
+
+@layer base {
+  :root {
+    --background: 0 0% 100%;
+    --foreground: 0 0% 3.9%;
+    --card: 0 0% 100%;
+    --card-foreground: 0 0% 3.9%;
+    --popover: 0 0% 100%;
+    --popover-foreground: 0 0% 3.9%;
+    --primary: 0 0% 9%;
+    --primary-foreground: 0 0% 98%;
+    --secondary: 0 0% 96.1%;
+    --secondary-foreground: 0 0% 9%;
+    --muted: 0 0% 96.1%;
+    --muted-foreground: 0 0% 45.1%;
+    --accent: 0 0% 96.1%;
+    --accent-foreground: 0 0% 9%;
+    --destructive: 0 84.2% 60.2%;
+    --destructive-foreground: 0 0% 98%;
+    --border: 0 0% 89.8%;
+    --input: 0 0% 89.8%;
+    --ring: 0 0% 3.9%;
+    --radius: 0.5rem;
+
+    --console-bg: #f7f7f7;
+    --console-sidebar-bg: #fbfbfb;
+    --console-surface-muted: #f5f5f5;
+    --console-border: #e5e5e5;
+    --console-border-strong: #d4d4d4;
+    --console-text: #1a1a1a;
+    --console-muted: #666666;
+    --console-accent: #2d2d2d;
+    --console-accent-strong: #1f1f1f;
+    --console-thread: #e8e8e8;
+    --console-thinking-bg: #f9f9f9;
+    --console-thinking-border: #ebebeb;
+    --console-success: #15803d;
+    --console-success-bg: #dcfce7;
+    --console-success-border: #bbf7d0;
+    --console-warning: #b45309;
+    --console-warning-bg: #fef3c7;
+    --console-warning-border: #fde68a;
+    --console-error: #b91c1c;
+    --console-error-bg: #fee2e2;
+    --console-error-border: #fecaca;
+  }
+
+  .dark {
+    --background: 0 0% 3.9%;
+    --foreground: 0 0% 98%;
+    --card: 0 0% 3.9%;
+    --card-foreground: 0 0% 98%;
+    --popover: 0 0% 3.9%;
+    --popover-foreground: 0 0% 98%;
+    --primary: 0 0% 98%;
+    --primary-foreground: 0 0% 9%;
+    --secondary: 0 0% 14.9%;
+    --secondary-foreground: 0 0% 98%;
+    --muted: 0 0% 14.9%;
+    --muted-foreground: 0 0% 63.9%;
+    --accent: 0 0% 14.9%;
+    --accent-foreground: 0 0% 98%;
+    --destructive: 0 62.8% 30.6%;
+    --destructive-foreground: 0 0% 98%;
+    --border: 0 0% 14.9%;
+    --input: 0 0% 14.9%;
+    --ring: 0 0% 83.1%;
+  }
+
+  * {
+    @apply border-border;
+  }
+
+  body {
+    @apply bg-background text-foreground;
+  }
+}
+
+@layer utilities {
+  .console-ui {
+    font-family:
+      "IBM Plex Sans",
+      "Avenir Next",
+      "PingFang SC",
+      -apple-system,
+      sans-serif;
+  }
+
+  .console-mono {
+    font-family:
+      "JetBrains Mono", "IBM Plex Mono", "SFMono-Regular", Menlo, Monaco, Consolas, monospace;
+  }
+
+  .bg-grid {
+    background-size: 40px 40px;
+    background-image:
+      linear-gradient(to right, rgba(0, 0, 0, 0.04) 1px, transparent 1px),
+      linear-gradient(to bottom, rgba(0, 0, 0, 0.04) 1px, transparent 1px);
+  }
+}
+
+.console-scrollbar::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+
+.console-scrollbar::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.console-scrollbar::-webkit-scrollbar-thumb {
+  background: #d1d5db;
+  border-radius: 2px;
+}
+
+.console-scrollbar::-webkit-scrollbar-thumb:hover {
+  background: #9ca3af;
+}
+
+.console-scrollbar {
+  scrollbar-width: thin;
+  scrollbar-color: #d1d5db transparent;
+}
+
+.console-markdown > * + * {
+  margin-top: 0.75rem;
+}
+
+.console-markdown p {
+  margin: 0;
+}
+
+.console-markdown h1,
+.console-markdown h2,
+.console-markdown h3,
+.console-markdown h4,
+.console-markdown h5,
+.console-markdown h6 {
+  margin: 0;
+  color: var(--console-text);
+  font-weight: 700;
+  line-height: 1.3;
+}
+
+.console-markdown h1 {
+  font-size: 1.5rem;
+  letter-spacing: -0.02em;
+}
+
+.console-markdown h2 {
+  font-size: 1.25rem;
+  letter-spacing: -0.015em;
+}
+
+.console-markdown h3 {
+  font-size: 1.1rem;
+}
+
+.console-markdown h4,
+.console-markdown h5,
+.console-markdown h6 {
+  font-size: 1rem;
+}
+
+.console-markdown ul,
+.console-markdown ol {
+  margin: 0.5rem 0;
+  padding-left: 1.25rem;
+}
+
+.console-markdown ul {
+  list-style: disc;
+}
+
+.console-markdown ol {
+  list-style: decimal;
+}
+
+.console-markdown li + li {
+  margin-top: 0.25rem;
+}
+
+.console-markdown li > p {
+  margin: 0;
+}
+
+.console-markdown strong {
+  font-weight: 700;
+}
+
+.console-markdown blockquote {
+  margin: 0;
+  border-left: 3px solid var(--console-border-strong);
+  padding-left: 0.875rem;
+  color: var(--console-muted);
+}
+
+.console-markdown hr {
+  margin: 1rem 0;
+  border: 0;
+  border-top: 1px solid var(--console-border);
+}
+
+.console-markdown a {
+  color: #4f46e5;
+  text-decoration: underline;
+}
+
+.console-markdown-link {
+  color: inherit;
+  cursor: text;
+  text-decoration: none;
+}
+
+.console-markdown code {
+  font-family:
+    "JetBrains Mono", "IBM Plex Mono", "SFMono-Regular", Menlo, Monaco, Consolas, monospace;
+  font-size: 0.8rem;
+  background: #f5f5f5;
+  border: 1px solid #e5e7eb;
+  border-radius: 0.125rem;
+  padding: 0.08rem 0.32rem;
+}
+
+.console-markdown pre {
+  margin: 0;
+  border: 1px solid #e5e7eb;
+  background: #fafafa;
+  border-radius: 0.125rem;
+  overflow-x: auto;
+  padding: 0.75rem;
+}
+
+.console-markdown pre code {
+  border: none;
+  background: transparent;
+  padding: 0;
+}
