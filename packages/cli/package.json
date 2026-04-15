@@ -1,5 +1,5 @@
 {
-  "name": "@agent-lens/cli",
+  "name": "agent-lens",
   "version": "0.1.0",
   "bin": {
     "agent-lens": "dist/index.js"
