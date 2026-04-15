@@ -8,6 +8,9 @@
 - **语言**：TypeScript 5.x，tsup 打包
 - **Server**：Hono（HTTP API）+ Citty（CLI 解析）
 - **Web**：React 19 + React Router + Tailwind CSS 4 + Radix UI
+- **Lint**：oxlint
+- **Format**：oxfmt
+- **Test**：vitest + @vitest/coverage-v8
 
 ## 包结构与模块职能
 

@@ -177,6 +177,19 @@ pnpm build
 
 # Clean build artifacts
 pnpm clean
+
+# Lint
+pnpm lint
+pnpm lint:fix
+
+# Format
+pnpm format
+pnpm format:check
+
+# Test
+pnpm test
+pnpm test:watch
+pnpm test:coverage
 ```
 
 ### Dev Workflow (watch mode)
