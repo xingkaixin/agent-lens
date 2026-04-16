@@ -1,5 +1,13 @@
 # Changelog
 
+## [0.1.3] - 2026-04-16
+
+- fix(agents): 过滤 Cursor 中空对话（没有实际消息内容的 composer）
+- feat(agents): 为 Claude Code、Codex、Kimi 增加 token 用量追踪
+- fix(agents): 优化 Codex 和 Kimi 的时间戳回退逻辑
+- feat(web): CLI 输出预览增加带样式的 Agent 状态展示
+- feat(web): 构建时从 package.json 注入应用版本号
+
 ## [0.1.1] - 2026-04-15
 
 - 修复 Web UI 返回 404 的问题（web dist 路径计算错误）
