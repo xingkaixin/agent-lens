@@ -1,5 +1,9 @@
 # Changelog
 
+## [0.1.4] - 2026-04-16
+
+- fix(core): initialize agent state when using cached scan results
+
 ## [0.1.3] - 2026-04-16
 
 - fix(agents): filter out empty Cursor sessions (composers with no actual messages)
