@@ -487,7 +487,8 @@ export class CodexAgent extends BaseAgent {
                 inputTokens = Number(totalUsage["input_tokens"] ?? 0) - prevInput;
                 cachedInputTokens = Number(totalUsage["cached_input_tokens"] ?? 0) - prevCached;
                 outputTokens = Number(totalUsage["output_tokens"] ?? 0) - prevOutput;
-                reasoningTokens = Number(totalUsage["reasoning_output_tokens"] ?? 0) - prevReasoning;
+                reasoningTokens =
+                  Number(totalUsage["reasoning_output_tokens"] ?? 0) - prevReasoning;
 
                 prevInput = Number(totalUsage["input_tokens"] ?? 0);
                 prevCached = Number(totalUsage["cached_input_tokens"] ?? 0);
@@ -690,7 +691,8 @@ export class CodexAgent extends BaseAgent {
                 inputTokens = Number(totalUsage["input_tokens"] ?? 0) - scanPrevInput;
                 cachedInputTokens = Number(totalUsage["cached_input_tokens"] ?? 0) - scanPrevCached;
                 outputTokens = Number(totalUsage["output_tokens"] ?? 0) - scanPrevOutput;
-                reasoningTokens = Number(totalUsage["reasoning_output_tokens"] ?? 0) - scanPrevReasoning;
+                reasoningTokens =
+                  Number(totalUsage["reasoning_output_tokens"] ?? 0) - scanPrevReasoning;
 
                 scanPrevInput = Number(totalUsage["input_tokens"] ?? 0);
                 scanPrevCached = Number(totalUsage["cached_input_tokens"] ?? 0);

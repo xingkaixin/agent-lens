@@ -91,20 +91,31 @@ export function Hero() {
               </button>
             </div>
             <pre className="console-mono overflow-x-auto text-sm leading-relaxed text-[#94a3b8]">
-<span className="font-semibold text-[#4ade80]">$ npx codesesh</span>
-{'\n'}
-{'\n'}<span className="text-[#64748b]"> ╭─────────────CodeSesh───────────────╮</span>
-{'\n'}<span className="text-[#64748b]"> │                                    │</span>
-{'\n'}<span className="text-[#64748b]"> │  </span><span className="text-[#e2e8f0]">v{__APP_VERSION__} • 123 sessions discovered</span><span className="text-[#64748b]">   │</span>
-{'\n'}<span className="text-[#64748b]"> │                                    │</span>
-{'\n'}<span className="text-[#64748b]"> ╰────────────────────────────────────╯</span>
-{'\n'}{'\n'}  <span className="text-[#4ade80]">✔</span> Claude Code      91 sessions
-{'\n'}  <span className="text-[#f87171]">✖</span> OpenCode         not found
-{'\n'}  <span className="text-[#4ade80]">✔</span> Kimi-Cli         2 sessions
-{'\n'}  <span className="text-[#4ade80]">✔</span> Codex            30 sessions
-{'\n'}  <span className="text-[#f87171]">✖</span> Cursor           not found
-{'\n'}{'\n'}<span className="text-[#38bdf8]">ℹ Active: 3/5 agents</span>
-{'\n'}{'\n'}  <span className="text-[#38bdf8]">http://localhost:4321</span>
+              <span className="font-semibold text-[#4ade80]">$ npx codesesh</span>
+              {"\n"}
+              {"\n"}
+              <span className="text-[#64748b]"> ╭─────────────CodeSesh───────────────╮</span>
+              {"\n"}
+              <span className="text-[#64748b]"> │ │</span>
+              {"\n"}
+              <span className="text-[#64748b]"> │ </span>
+              <span className="text-[#e2e8f0]">v{__APP_VERSION__} • 123 sessions discovered</span>
+              <span className="text-[#64748b]"> │</span>
+              {"\n"}
+              <span className="text-[#64748b]"> │ │</span>
+              {"\n"}
+              <span className="text-[#64748b]"> ╰────────────────────────────────────╯</span>
+              {"\n"}
+              {"\n"} <span className="text-[#4ade80]">✔</span> Claude Code 91 sessions
+              {"\n"} <span className="text-[#f87171]">✖</span> OpenCode not found
+              {"\n"} <span className="text-[#4ade80]">✔</span> Kimi-Cli 2 sessions
+              {"\n"} <span className="text-[#4ade80]">✔</span> Codex 30 sessions
+              {"\n"} <span className="text-[#f87171]">✖</span> Cursor not found
+              {"\n"}
+              {"\n"}
+              <span className="text-[#38bdf8]">ℹ Active: 3/5 agents</span>
+              {"\n"}
+              {"\n"} <span className="text-[#38bdf8]">http://localhost:4321</span>
             </pre>
           </div>
           <p className="console-mono mt-3 text-center text-xs text-[var(--console-accent)]">

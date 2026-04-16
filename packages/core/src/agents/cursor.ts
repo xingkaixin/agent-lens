@@ -389,8 +389,14 @@ export class CursorAgent extends BaseAgent {
           const createdAt = composer.createdAt ?? 0;
           const updatedAt = composer.updatedAt ?? createdAt;
 
-          // Count messages from bubbles
-          const messageCount = this.countMessagesFromBubbles(db, composerId);
+          // Load actual messages to filter out empty composers
+          const messages = this.loadMessagesFromBubbles(db, composerId, sessionId);
+          const hasSubagents =
+            Array.isArray(composer.subagentInfos) && composer.subagentInfos.length > 0;
+          if (messages.length === 0 && !hasSubagents) {
+            continue; // Skip empty sessions
+          }
+          const messageCount = messages.length;
 
           const directory = workspacePathMap.get(composerId) ?? "";
 
