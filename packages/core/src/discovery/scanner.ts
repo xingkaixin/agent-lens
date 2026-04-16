@@ -105,6 +105,10 @@ async function scanAgentSmart(
         agent.setSessionMetaMap(metaMap);
       }
 
+      // 命中缓存时也要确保 agent 的 basePath 等状态已初始化
+      // 否则后台增量刷新会因为 basePath 为 null 而失效
+      agent.isAvailable();
+
       // 通知缓存已加载
       onProgress?.({
         agent: agent.name,
