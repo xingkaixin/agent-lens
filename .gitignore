@@ -26,3 +26,6 @@ Thumbs.db
 
 # cf
 .wrangler
+
+# worktree
+.worktree
