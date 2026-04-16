@@ -45,13 +45,6 @@ export function Header() {
 
 /* ─── Hero ────────────────────────────────────────────── */
 
-const installSteps = [
-  { prompt: "$", command: "npx codesesh" },
-  { prompt: "→", command: "Scanning sessions..." },
-  { prompt: "✔", command: "8 sessions discovered across 3 agents" },
-  { prompt: "ℹ", command: "http://localhost:4321" },
-];
-
 export function Hero() {
   const [copied, setCopied] = useState(false);
 
@@ -97,28 +90,22 @@ export function Hero() {
                 )}
               </button>
             </div>
-            <div className="space-y-1.5">
-              {installSteps.map((step) => (
-                <div key={step.command} className="flex items-start gap-3">
-                  <span className="console-mono shrink-0 w-4 text-right text-xs text-[#64748b]">
-                    {step.prompt}
-                  </span>
-                  <code
-                    className={`console-mono text-sm ${
-                      step.prompt === "$"
-                        ? "font-semibold text-[#4ade80]"
-                        : step.prompt === "✔"
-                          ? "text-[#4ade80]"
-                          : step.prompt === "ℹ"
-                            ? "text-[#38bdf8]"
-                            : "text-[#94a3b8]"
-                    }`}
-                  >
-                    {step.command}
-                  </code>
-                </div>
-              ))}
-            </div>
+            <pre className="console-mono overflow-x-auto text-sm leading-relaxed text-[#94a3b8]">
+<span className="font-semibold text-[#4ade80]">$ npx codesesh</span>
+{'\n'}
+{'\n'}<span className="text-[#64748b]"> ╭─────────────CodeSesh───────────────╮</span>
+{'\n'}<span className="text-[#64748b]"> │                                    │</span>
+{'\n'}<span className="text-[#64748b]"> │  </span><span className="text-[#e2e8f0]">v{__APP_VERSION__} • 123 sessions discovered</span><span className="text-[#64748b]">   │</span>
+{'\n'}<span className="text-[#64748b]"> │                                    │</span>
+{'\n'}<span className="text-[#64748b]"> ╰────────────────────────────────────╯</span>
+{'\n'}{'\n'}  <span className="text-[#4ade80]">✔</span> Claude Code      91 sessions
+{'\n'}  <span className="text-[#f87171]">✖</span> OpenCode         not found
+{'\n'}  <span className="text-[#4ade80]">✔</span> Kimi-Cli         2 sessions
+{'\n'}  <span className="text-[#4ade80]">✔</span> Codex            30 sessions
+{'\n'}  <span className="text-[#f87171]">✖</span> Cursor           not found
+{'\n'}{'\n'}<span className="text-[#38bdf8]">ℹ Active: 3/5 agents</span>
+{'\n'}{'\n'}  <span className="text-[#38bdf8]">http://localhost:4321</span>
+            </pre>
           </div>
           <p className="console-mono mt-3 text-center text-xs text-[var(--console-accent)]">
             Requires Node.js 20+ · Works with pnpm, npm, or bun
