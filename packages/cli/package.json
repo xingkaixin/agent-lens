@@ -1,13 +1,44 @@
 {
   "name": "codesesh",
   "version": "0.1.1",
+  "description": "One place to see every AI coding session you've ever had. Unify Claude Code, Cursor, Kimi, Codex, and OpenCode sessions in a single, beautiful Web UI.",
+  "keywords": [
+    "ai",
+    "claude",
+    "cursor",
+    "kimi",
+    "codex",
+    "opencode",
+    "session",
+    "history",
+    "visualization",
+    "developer-tools",
+    "cli",
+    "web-ui"
+  ],
+  "homepage": "https://codesesh.xingkaixin.me/",
+  "bugs": {
+    "url": "https://github.com/xingkaixin/codesesh/issues"
+  },
   "repository": {
     "type": "git",
-    "url": "https://github.com/xingkaixin/codesesh"
+    "url": "git+https://github.com/xingkaixin/codesesh.git",
+    "directory": "packages/cli"
+  },
+  "license": "MIT",
+  "author": "Kevin <xingkaixin@gmail.com>",
+  "engines": {
+    "node": ">=18.0.0"
   },
   "bin": {
     "codesesh": "dist/index.js"
   },
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "files": [
+    "dist",
+    "README.md"
+  ],
   "type": "module",
   "publishConfig": {
     "access": "public"
