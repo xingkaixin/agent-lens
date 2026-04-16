@@ -1,12 +1,13 @@
 import { consola } from "consola";
 import type { BaseAgent } from "@codesesh/core";
 import type { ScanResult } from "@codesesh/core";
+import { VERSION } from "./version.js";
 
 export function printScanResults(agents: BaseAgent[], result: ScanResult): void {
   consola.log("");
   consola.box({
     title: "CodeSesh",
-    message: `v0.1.1 • ${result.sessions.length} sessions discovered`,
+    message: `v${VERSION} • ${result.sessions.length} sessions discovered`,
     style: {
       padding: 1,
       borderColor: "cyan",

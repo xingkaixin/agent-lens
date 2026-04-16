@@ -1,6 +1,7 @@
 import { defineCommand, runMain } from "citty";
 import { createServer } from "./server.js";
 import { printScanResults } from "./output.js";
+import { VERSION } from "./version.js";
 import {
   scanSessionsAsync,
   createRegisteredAgents,
@@ -8,8 +9,6 @@ import {
   type ScanOptions,
   perf,
 } from "@codesesh/core";
-
-const VERSION = "0.1.1";
 
 function parseDateToTimestamp(dateStr: string): number {
   const date = new Date(dateStr);
