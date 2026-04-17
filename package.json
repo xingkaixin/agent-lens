@@ -7,12 +7,11 @@
     "dev": "turbo run dev",
     "serve": "node --watch packages/cli/dist/index.js",
     "clean": "turbo run clean",
-    "lint": "oxlint packages/ apps/",
-    "lint:fix": "oxlint packages/ apps/ --fix",
-    "format": "oxfmt --write packages/ apps/",
-    "format:check": "oxfmt --check packages/ apps/",
-    "test": "vitest run",
-    "test:watch": "vitest",
+    "lint": "turbo run lint",
+    "lint:fix": "turbo run lint:fix",
+    "format": "turbo run format",
+    "format:check": "turbo run format:check",
+    "test": "turbo run test",
     "test:coverage": "vitest run --coverage"
   },
   "devDependencies": {

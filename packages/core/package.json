@@ -15,7 +15,12 @@
   "scripts": {
     "build": "tsup",
     "dev": "tsup --watch",
-    "clean": "rm -rf dist"
+    "clean": "rm -rf dist",
+    "lint": "oxlint src/",
+    "lint:fix": "oxlint src/ --fix",
+    "format": "oxfmt --write src/",
+    "format:check": "oxfmt --check src/",
+    "test": "vitest run"
   },
   "devDependencies": {
     "@types/better-sqlite3": "^7.6.13",
