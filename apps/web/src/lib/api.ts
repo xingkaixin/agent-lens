@@ -134,6 +134,20 @@ export interface DashboardData {
   window: { from: number; to: number; days: number };
 }
 
+export interface AppConfig {
+  window: {
+    from?: number;
+    to?: number;
+    days?: number;
+  };
+}
+
+export async function fetchConfig(): Promise<AppConfig> {
+  const res = await fetch("/api/config");
+  if (!res.ok) throw new Error("Failed to fetch config");
+  return res.json();
+}
+
 export async function fetchAgents(): Promise<AgentInfo[]> {
   const res = await fetch("/api/agents");
   if (!res.ok) throw new Error("Failed to fetch agents");
@@ -154,10 +168,11 @@ export async function fetchSessionData(agent: string, sessionId: string): Promis
   return res.json();
 }
 
-export async function fetchDashboard(days = 30): Promise<DashboardData> {
+export async function fetchDashboard(days?: number): Promise<DashboardData> {
   const params = new URLSearchParams();
-  params.set("days", String(days));
-  const res = await fetch(`/api/dashboard?${params}`);
+  if (days != null && days > 0) params.set("days", String(days));
+  const suffix = params.toString();
+  const res = await fetch(suffix ? `/api/dashboard?${suffix}` : "/api/dashboard");
   if (!res.ok) throw new Error("Failed to fetch dashboard");
   return res.json();
 }

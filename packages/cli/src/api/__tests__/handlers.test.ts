@@ -1,6 +1,7 @@
 import { describe, it, expect, vi } from "vitest";
 import {
   handleGetAgents,
+  handleGetConfig,
   handleGetDashboard,
   handleGetSessions,
   handleGetSessionData,
@@ -16,8 +17,8 @@ function makeSession(id: string, overrides?: Partial<SessionHead>): SessionHead 
     id,
     slug: `agent/${id}`,
     title: `Session ${id}`,
-    time_created: 1000,
-    time_updated: 1000,
+    time_created: Date.now(),
+    time_updated: Date.now(),
     directory: "/home/user/project",
     stats: {
       message_count: 0,
@@ -103,6 +104,28 @@ describe("handleGetAgents", () => {
     expect(c.json).toHaveBeenCalled();
     const response = c.json.mock.calls[0]![0];
     expect(Array.isArray(response)).toBe(true);
+  });
+
+  it("applies default time window to agent counts", () => {
+    const c = makeMockContext();
+    const from = Date.now() - 7 * 86400000;
+    const sessions = [
+      makeSession("old", { time_created: Date.now() - 30 * 86400000 }),
+      makeSession("recent", { time_created: Date.now() - 1 * 86400000 }),
+    ];
+    handleGetAgents(c, makeScanSource({ sessions, byAgent: { claudecode: sessions } }), { from });
+    const response = c.json.mock.calls[0]![0];
+    const claudecode = response.find((a: { name: string }) => a.name === "claudecode");
+    expect(claudecode.count).toBe(1); // only "recent" is within window
+  });
+});
+
+describe("handleGetConfig", () => {
+  it("echoes window defaults", () => {
+    const c = makeMockContext();
+    handleGetConfig(c, { from: 1000, to: 2000, days: 7 });
+    const response = c.json.mock.calls[0]![0];
+    expect(response.window).toEqual({ from: 1000, to: 2000, days: 7 });
   });
 });
 

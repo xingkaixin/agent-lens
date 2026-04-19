@@ -5,6 +5,7 @@ import { Link, useLocation } from "react-router-dom";
 import { ModelConfig } from "./config";
 import type {
   AgentInfo,
+  AppConfig,
   DashboardData,
   SessionHead,
   SessionData,
@@ -12,6 +13,7 @@ import type {
 } from "./lib/api";
 import {
   fetchAgents,
+  fetchConfig,
   fetchDashboard,
   fetchSessions,
   fetchSessionData,
@@ -88,6 +90,24 @@ function parseViewState(pathname: string, validAgentKeys: Set<string>): ViewStat
   return { mode: "invalidRoute", activeAgentKey: null, activeSessionSlug: null };
 }
 
+function formatIsoDate(ts: number): string {
+  const d = new Date(ts);
+  const y = d.getFullYear();
+  const m = String(d.getMonth() + 1).padStart(2, "0");
+  const day = String(d.getDate()).padStart(2, "0");
+  return `${y}-${m}-${day}`;
+}
+
+function formatWindowLabel(config: AppConfig | null): string | null {
+  if (!config) return null;
+  const { from, to, days } = config.window;
+  if (from == null) return "All time";
+  const fromStr = formatIsoDate(from);
+  const toStr = formatIsoDate(to ?? Date.now());
+  if (days) return `Last ${days}d · ${fromStr} → ${toStr}`;
+  return `${fromStr} → ${toStr}`;
+}
+
 function formatRelativeTime(timestamp?: number) {
   if (!timestamp) return "unknown";
   const diff = Date.now() - timestamp;
@@ -112,15 +132,26 @@ export default function App() {
   const [sessionError, setSessionError] = useState<string | null>(null);
   const [liveNotice, setLiveNotice] = useState<string | null>(null);
   const [dashboard, setDashboard] = useState<DashboardData | null>(null);
+  const [appConfig, setAppConfig] = useState<AppConfig | null>(null);
 
-  // Load agents and sessions
+  // Load config + agents + sessions + dashboard (all share the same app-level window)
   useEffect(() => {
     const ac = new AbortController();
     (async () => {
       try {
-        const [agentList, sessionList] = await Promise.all([fetchAgents(), fetchSessions()]);
+        const config = await fetchConfig();
+        setAppConfig(config);
+        const [agentList, sessionList, dashboardData] = await Promise.all([
+          fetchAgents(),
+          fetchSessions(),
+          fetchDashboard(config.window.days).catch((err) => {
+            console.error("Failed to load dashboard:", err);
+            return null;
+          }),
+        ]);
         setAgents(agentList);
         setSessions(sessionList.sessions);
+        if (dashboardData) setDashboard(dashboardData);
       } catch (err) {
         console.error("Failed to load data:", err);
         setError("Failed to load data. Is the CLI server running?");
@@ -129,22 +160,6 @@ export default function App() {
       }
     })();
     return () => ac.abort();
-  }, []);
-
-  // Load dashboard aggregate (independent of session list window)
-  useEffect(() => {
-    let cancelled = false;
-    (async () => {
-      try {
-        const data = await fetchDashboard(30);
-        if (!cancelled) setDashboard(data);
-      } catch (err) {
-        console.error("Failed to load dashboard:", err);
-      }
-    })();
-    return () => {
-      cancelled = true;
-    };
   }, []);
 
   const location = useLocation();
@@ -228,7 +243,7 @@ export default function App() {
       const [agentList, sessionList, dashboardData] = await Promise.all([
         fetchAgents(),
         fetchSessions(),
-        fetchDashboard(30).catch((err) => {
+        fetchDashboard(appConfig?.window.days).catch((err) => {
           console.error("Failed to refresh dashboard:", err);
           return null;
         }),
@@ -429,9 +444,19 @@ export default function App() {
               CodeSesh
             </span>
           </Link>
-          <span className="console-mono rounded-sm border border-[var(--console-border)] bg-[var(--console-surface-muted)] px-2 py-1 text-xs text-[var(--console-muted)]">
-            v{__APP_VERSION__}
-          </span>
+          <div className="flex items-center gap-3">
+            {formatWindowLabel(appConfig) ? (
+              <span
+                className="console-mono rounded-sm border border-[var(--console-border)] bg-white px-2 py-1 text-xs text-[var(--console-text)]"
+                title="Time window applied to agent counts, dashboard, and session list"
+              >
+                {formatWindowLabel(appConfig)}
+              </span>
+            ) : null}
+            <span className="console-mono rounded-sm border border-[var(--console-border)] bg-[var(--console-surface-muted)] px-2 py-1 text-xs text-[var(--console-muted)]">
+              v{__APP_VERSION__}
+            </span>
+          </div>
         </div>
       </header>
 

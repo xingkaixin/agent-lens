@@ -121,15 +121,17 @@ const main = defineCommand({
       cwdFilter = process.cwd();
     }
 
-    // Resolve session list window: --from takes priority over --days
-    // 扫描阶段不再过滤时间；时间切片仅作为 /api/sessions 默认窗口。
+    // Resolve app-level default window (shared across /api/agents, /sessions, /dashboard).
+    // Priority: --from (absolute) over --days (relative).
     let listDefaultFrom: number | undefined;
+    let listDefaultDays: number | undefined;
     if (args.from) {
       listDefaultFrom = parseDateToTimestamp(args.from as string);
     } else {
       const days = parseInt(args.days as string, 10);
       if (!Number.isNaN(days) && days > 0) {
         listDefaultFrom = Date.now() - days * 24 * 60 * 60 * 1000;
+        listDefaultDays = days;
       }
     }
     const listDefaultTo = args.to ? parseDateToTimestamp(args.to as string) : undefined;
@@ -186,6 +188,7 @@ const main = defineCommand({
       ({ url } = await createServer(port, store, {
         defaultSessionFrom: listDefaultFrom,
         defaultSessionTo: listDefaultTo,
+        defaultSessionDays: listDefaultDays,
       }));
     } catch (error) {
       console.error(getServerStartupErrorMessage(error, port));

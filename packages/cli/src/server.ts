@@ -13,6 +13,7 @@ import { LiveScanStore } from "./live-scan.js";
 export interface CreateServerOptions {
   defaultSessionFrom?: number;
   defaultSessionTo?: number;
+  defaultSessionDays?: number;
 }
 
 function findWebDistPath(): string | null {
@@ -75,6 +76,7 @@ export async function createServer(
   const routeOptions: ApiRouteOptions = {
     defaultSessionFrom: options.defaultSessionFrom,
     defaultSessionTo: options.defaultSessionTo,
+    defaultSessionDays: options.defaultSessionDays,
   };
   app.route(
     "/api",

@@ -1,6 +1,7 @@
 import { Hono } from "hono";
 import {
   handleGetAgents,
+  handleGetConfig,
   handleGetDashboard,
   handleGetSessions,
   handleGetSessionData,
@@ -12,6 +13,7 @@ import type { LiveScanStore } from "../live-scan.js";
 export interface ApiRouteOptions {
   defaultSessionFrom?: number;
   defaultSessionTo?: number;
+  defaultSessionDays?: number;
 }
 
 function createSseResponse(store: LiveScanStore, signal: AbortSignal): Response {
@@ -66,12 +68,14 @@ export function createApiRoutes(
   const listDefaults: SessionListDefaults = {
     from: options.defaultSessionFrom,
     to: options.defaultSessionTo,
+    days: options.defaultSessionDays,
   };
 
-  api.get("/agents", (c) => handleGetAgents(c, scanSource));
+  api.get("/config", (c) => handleGetConfig(c, listDefaults));
+  api.get("/agents", (c) => handleGetAgents(c, scanSource, listDefaults));
   api.get("/sessions", (c) => handleGetSessions(c, scanSource, listDefaults));
   api.get("/sessions/:agent/:id", (c) => handleGetSessionData(c, scanSource));
-  api.get("/dashboard", (c) => handleGetDashboard(c, scanSource));
+  api.get("/dashboard", (c) => handleGetDashboard(c, scanSource, listDefaults));
   if (store) {
     api.get("/events", (c) => createSseResponse(store, c.req.raw.signal));
   }
