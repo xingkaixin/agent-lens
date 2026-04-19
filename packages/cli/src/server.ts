@@ -7,8 +7,13 @@ import type { Server } from "node:http";
 import { resolve, dirname } from "node:path";
 import { fileURLToPath } from "node:url";
 import type { ScanResultSource } from "./api/handlers.js";
-import { createApiRoutes } from "./api/routes.js";
+import { createApiRoutes, type ApiRouteOptions } from "./api/routes.js";
 import { LiveScanStore } from "./live-scan.js";
+
+export interface CreateServerOptions {
+  defaultSessionFrom?: number;
+  defaultSessionTo?: number;
+}
 
 function findWebDistPath(): string | null {
   const __dirname = dirname(fileURLToPath(import.meta.url));
@@ -60,15 +65,24 @@ export function getServerStartupErrorMessage(error: unknown, port: number): stri
 export async function createServer(
   port: number,
   store: ScanResultSource & Partial<Pick<LiveScanStore, "subscribe" | "shutdown">>,
+  options: CreateServerOptions = {},
 ): Promise<{ url: string; shutdown: () => void }> {
   const app = new Hono();
 
   app.use("*", logger());
 
   // API routes
+  const routeOptions: ApiRouteOptions = {
+    defaultSessionFrom: options.defaultSessionFrom,
+    defaultSessionTo: options.defaultSessionTo,
+  };
   app.route(
     "/api",
-    createApiRoutes(store, "subscribe" in store ? (store as LiveScanStore) : undefined),
+    createApiRoutes(
+      store,
+      "subscribe" in store ? (store as LiveScanStore) : undefined,
+      routeOptions,
+    ),
   );
 
   // Serve static files from web dist (if available)

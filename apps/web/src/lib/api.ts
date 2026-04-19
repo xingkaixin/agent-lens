@@ -99,6 +99,41 @@ export interface SessionsUpdatedEvent {
   timestamp: number;
 }
 
+export interface DashboardAgentStat {
+  name: string;
+  displayName: string;
+  icon: string;
+  sessions: number;
+  messages: number;
+  tokens: number;
+}
+
+export interface DashboardDailyBucket {
+  date: string;
+  sessions: number;
+  messages: number;
+}
+
+export interface DashboardTotals {
+  sessions: number;
+  messages: number;
+  tokens: number;
+  cost: number;
+  latestActivity?: number;
+}
+
+export interface DashboardRecentSession extends SessionHead {
+  agentName: string;
+}
+
+export interface DashboardData {
+  totals: DashboardTotals;
+  perAgent: DashboardAgentStat[];
+  dailyActivity: DashboardDailyBucket[];
+  recentSessions: DashboardRecentSession[];
+  window: { from: number; to: number; days: number };
+}
+
 export async function fetchAgents(): Promise<AgentInfo[]> {
   const res = await fetch("/api/agents");
   if (!res.ok) throw new Error("Failed to fetch agents");
@@ -116,6 +151,14 @@ export async function fetchSessions(agent?: string): Promise<{ sessions: Session
 export async function fetchSessionData(agent: string, sessionId: string): Promise<SessionData> {
   const res = await fetch(`/api/sessions/${agent}/${sessionId}`);
   if (!res.ok) throw new Error("Failed to fetch session data");
+  return res.json();
+}
+
+export async function fetchDashboard(days = 30): Promise<DashboardData> {
+  const params = new URLSearchParams();
+  params.set("days", String(days));
+  const res = await fetch(`/api/dashboard?${params}`);
+  if (!res.ok) throw new Error("Failed to fetch dashboard");
   return res.json();
 }
 

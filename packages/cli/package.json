@@ -62,6 +62,7 @@
     "open": "^10.1.2"
   },
   "devDependencies": {
+    "@codesesh/web": "workspace:*",
     "@types/node": "^22.14.0",
     "tsup": "^8.4.0",
     "typescript": "^5.9.3"

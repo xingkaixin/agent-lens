@@ -179,6 +179,9 @@ importers:
         specifier: ^10.1.2
         version: 10.2.0
     devDependencies:
+      '@codesesh/web':
+        specifier: workspace:*
+        version: link:../../apps/web
       '@types/node':
         specifier: ^22.14.0
         version: 22.19.17

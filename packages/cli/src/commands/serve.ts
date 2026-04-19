@@ -47,9 +47,9 @@ export const serveCommand = defineCommand({
         ? (args.agent as string).split(",").map((agent) => agent.trim())
         : undefined,
       cwd: args.cwd as string | undefined,
-      from: args.from ? new Date(args.from as string).getTime() : undefined,
-      to: args.to ? new Date(args.to as string).getTime() : undefined,
     };
+    const listDefaultFrom = args.from ? new Date(args.from as string).getTime() : undefined;
+    const listDefaultTo = args.to ? new Date(args.to as string).getTime() : undefined;
     const store = new LiveScanStore(!jsonOnly, scanOptions);
 
     await store.initialize();
@@ -81,7 +81,10 @@ export const serveCommand = defineCommand({
     // Start server
     let url: string;
     try {
-      ({ url } = await createServer(port, store));
+      ({ url } = await createServer(port, store, {
+        defaultSessionFrom: listDefaultFrom,
+        defaultSessionTo: listDefaultTo,
+      }));
     } catch (error) {
       console.error(getServerStartupErrorMessage(error, port));
       process.exit(1);

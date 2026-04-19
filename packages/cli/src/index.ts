@@ -121,18 +121,20 @@ const main = defineCommand({
       cwdFilter = process.cwd();
     }
 
-    // Resolve from timestamp: --from takes priority over --days
-    let fromTimestamp: number | undefined;
+    // Resolve session list window: --from takes priority over --days
+    // 扫描阶段不再过滤时间；时间切片仅作为 /api/sessions 默认窗口。
+    let listDefaultFrom: number | undefined;
     if (args.from) {
-      fromTimestamp = parseDateToTimestamp(args.from as string);
+      listDefaultFrom = parseDateToTimestamp(args.from as string);
     } else {
       const days = parseInt(args.days as string, 10);
       if (!Number.isNaN(days) && days > 0) {
-        fromTimestamp = Date.now() - days * 24 * 60 * 60 * 1000;
+        listDefaultFrom = Date.now() - days * 24 * 60 * 60 * 1000;
       }
     }
+    const listDefaultTo = args.to ? parseDateToTimestamp(args.to as string) : undefined;
 
-    // Build scan options
+    // Build scan options (no time slicing — Dashboard needs full history)
     const scanOptions: ScanOptions = {
       agents: targetSession
         ? [targetSession.agent]
@@ -140,8 +142,6 @@ const main = defineCommand({
           ? (args.agent as string).split(",").map((a) => a.trim())
           : undefined,
       cwd: cwdFilter,
-      from: fromTimestamp,
-      to: args.to ? parseDateToTimestamp(args.to as string) : undefined,
       useCache: useCache,
     };
 
@@ -154,6 +154,12 @@ const main = defineCommand({
     }
 
     if (jsonOnly) {
+      // Apply --days/--from/--to window to the JSON output so CLI semantics are preserved.
+      const windowed = result.sessions.filter((s) => {
+        if (listDefaultFrom != null && s.time_created < listDefaultFrom) return false;
+        if (listDefaultTo != null && s.time_created > listDefaultTo) return false;
+        return true;
+      });
       const info = getAgentInfoMap(
         Object.fromEntries(Object.entries(result.byAgent).map(([k, v]) => [k, v.length])),
       );
@@ -164,7 +170,7 @@ const main = defineCommand({
           count,
           available: count > 0,
         })),
-        sessions: result.sessions,
+        sessions: windowed,
       };
       console.log(JSON.stringify(output, null, 2));
       return;
@@ -177,7 +183,10 @@ const main = defineCommand({
     // Start server
     let url: string;
     try {
-      ({ url } = await createServer(port, store));
+      ({ url } = await createServer(port, store, {
+        defaultSessionFrom: listDefaultFrom,
+        defaultSessionTo: listDefaultTo,
+      }));
     } catch (error) {
       console.error(getServerStartupErrorMessage(error, port));
       process.exit(1);

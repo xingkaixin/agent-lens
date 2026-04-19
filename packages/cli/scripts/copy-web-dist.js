@@ -3,7 +3,7 @@
  * Post-build script to copy web dist into CLI package
  * This ensures the CLI can serve the web UI as static files
  */
-import { existsSync, cpSync, mkdirSync } from "node:fs";
+import { existsSync, cpSync, mkdirSync, rmSync } from "node:fs";
 import { resolve, dirname } from "node:path";
 import { fileURLToPath } from "node:url";
 
@@ -20,9 +20,10 @@ if (!existsSync(webDistSource)) {
   process.exit(0);
 }
 
-// Ensure target directory exists
+// Ensure target directory exists, purging any stale hashed assets from prior builds
 try {
   mkdirSync(dirname(webDistTarget), { recursive: true });
+  rmSync(webDistTarget, { recursive: true, force: true });
   cpSync(webDistSource, webDistTarget, { recursive: true, force: true });
   console.log("✓ Copied web dist to:", webDistTarget);
 } catch (err) {

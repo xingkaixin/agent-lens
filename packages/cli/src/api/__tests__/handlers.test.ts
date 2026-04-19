@@ -1,6 +1,7 @@
 import { describe, it, expect, vi } from "vitest";
 import {
   handleGetAgents,
+  handleGetDashboard,
   handleGetSessions,
   handleGetSessionData,
   type ScanResultSource,
@@ -18,6 +19,12 @@ function makeSession(id: string, overrides?: Partial<SessionHead>): SessionHead 
     time_created: 1000,
     time_updated: 1000,
     directory: "/home/user/project",
+    stats: {
+      message_count: 0,
+      total_input_tokens: 0,
+      total_output_tokens: 0,
+      total_cost: 0,
+    },
     ...overrides,
   };
 }
@@ -160,6 +167,62 @@ describe("handleGetSessions", () => {
     const response = c.json.mock.calls[0]![0];
     // Invalid date → filter not applied
     expect(response.sessions).toHaveLength(2);
+  });
+});
+
+describe("handleGetDashboard", () => {
+  it("aggregates totals across all sessions", () => {
+    const c = makeMockContext();
+    const sessions = [
+      makeSession("a", {
+        time_created: Date.now() - 2 * 86400000,
+        stats: {
+          message_count: 3,
+          total_input_tokens: 10,
+          total_output_tokens: 5,
+          total_cost: 0.1,
+        },
+      }),
+      makeSession("b", {
+        time_created: Date.now() - 1 * 86400000,
+        stats: {
+          message_count: 2,
+          total_input_tokens: 4,
+          total_output_tokens: 1,
+          total_cost: 0.05,
+          total_tokens: 12,
+        },
+      }),
+    ];
+    handleGetDashboard(
+      c,
+      makeScanSource({
+        sessions,
+        byAgent: { claudecode: sessions },
+      }),
+    );
+    const response = c.json.mock.calls[0]![0];
+    expect(response.totals.sessions).toBe(2);
+    expect(response.totals.messages).toBe(5);
+    expect(response.totals.tokens).toBe(15 + 12);
+    expect(response.totals.cost).toBeCloseTo(0.15);
+    expect(response.dailyActivity).toHaveLength(30);
+  });
+
+  it("honors custom days query param", () => {
+    const c = makeMockContext({ query: { days: "7" } });
+    handleGetDashboard(c, makeScanSource());
+    const response = c.json.mock.calls[0]![0];
+    expect(response.dailyActivity).toHaveLength(7);
+    expect(response.window.days).toBe(7);
+  });
+
+  it("produces per-agent breakdown sorted by session count", () => {
+    const c = makeMockContext();
+    handleGetDashboard(c, makeScanSource());
+    const response = c.json.mock.calls[0]![0];
+    expect(Array.isArray(response.perAgent)).toBe(true);
+    expect(response.perAgent[0]?.name).toBe("claudecode");
   });
 });
 

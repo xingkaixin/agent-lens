@@ -3,8 +3,20 @@ declare const __APP_VERSION__: string;
 import { useEffect, useEffectEvent, useMemo, useState, type ReactNode } from "react";
 import { Link, useLocation } from "react-router-dom";
 import { ModelConfig } from "./config";
-import type { AgentInfo, SessionHead, SessionData, SessionsUpdatedEvent } from "./lib/api";
-import { fetchAgents, fetchSessions, fetchSessionData, subscribeSessionUpdates } from "./lib/api";
+import type {
+  AgentInfo,
+  DashboardData,
+  SessionHead,
+  SessionData,
+  SessionsUpdatedEvent,
+} from "./lib/api";
+import {
+  fetchAgents,
+  fetchDashboard,
+  fetchSessions,
+  fetchSessionData,
+  subscribeSessionUpdates,
+} from "./lib/api";
 import { SessionDetail } from "./components/SessionDetail";
 import { SessionDetailSkeleton } from "./components/SessionDetailSkeleton";
 import {
@@ -12,6 +24,7 @@ import {
   type LandingSession,
   type LandingAgentItem,
 } from "./components/DetailLanding";
+import { Dashboard } from "./components/Dashboard";
 import { ErrorBoundary } from "./components/ErrorBoundary";
 
 type ViewState =
@@ -98,6 +111,7 @@ export default function App() {
   const [sessionLoading, setSessionLoading] = useState(false);
   const [sessionError, setSessionError] = useState<string | null>(null);
   const [liveNotice, setLiveNotice] = useState<string | null>(null);
+  const [dashboard, setDashboard] = useState<DashboardData | null>(null);
 
   // Load agents and sessions
   useEffect(() => {
@@ -115,6 +129,22 @@ export default function App() {
       }
     })();
     return () => ac.abort();
+  }, []);
+
+  // Load dashboard aggregate (independent of session list window)
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      try {
+        const data = await fetchDashboard(30);
+        if (!cancelled) setDashboard(data);
+      } catch (err) {
+        console.error("Failed to load dashboard:", err);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
   }, []);
 
   const location = useLocation();
@@ -195,9 +225,17 @@ export default function App() {
 
   const syncLiveUpdate = useEffectEvent(async (event: SessionsUpdatedEvent) => {
     try {
-      const [agentList, sessionList] = await Promise.all([fetchAgents(), fetchSessions()]);
+      const [agentList, sessionList, dashboardData] = await Promise.all([
+        fetchAgents(),
+        fetchSessions(),
+        fetchDashboard(30).catch((err) => {
+          console.error("Failed to refresh dashboard:", err);
+          return null;
+        }),
+      ]);
       setAgents(agentList);
       setSessions(sessionList.sessions);
+      if (dashboardData) setDashboard(dashboardData);
 
       if (viewState.mode === "session") {
         try {
@@ -296,6 +334,12 @@ export default function App() {
   // Header
   let headerTitle = "CodeSesh";
   let headerSubtitle = "Select an agent to browse sessions";
+  if (viewState.mode === "root") {
+    headerTitle = "Dashboard";
+    headerSubtitle = dashboard
+      ? `${dashboard.totals.sessions.toLocaleString("en-US")} total sessions across ${dashboard.perAgent.length} agents`
+      : "Aggregated view across all agents";
+  }
   if (viewState.mode === "agent" && activeAgentKey) {
     const agent = agents.find((a) => a.name.toLowerCase() === activeAgentKey);
     headerTitle = agent?.displayName ?? activeAgentKey;
@@ -331,7 +375,9 @@ export default function App() {
       </div>
     );
   } else if (viewState.mode === "root") {
-    content = (
+    content = dashboard ? (
+      <Dashboard data={dashboard} />
+    ) : (
       <DetailLanding type="global" sessions={landingSessions} agentItems={landingAgentItems} />
     );
   } else if (viewState.mode === "agent" && activeAgentKey) {
@@ -507,7 +553,11 @@ export default function App() {
             <div>
               <div className="flex items-center gap-2">
                 <span className="console-mono rounded-sm border border-[var(--console-border)] bg-[var(--console-surface-muted)] px-1.5 py-0.5 text-[10px] font-bold uppercase text-[var(--console-muted)]">
-                  {viewState.mode === "session" ? "Session" : "Landing"}
+                  {viewState.mode === "session"
+                    ? "Session"
+                    : viewState.mode === "root"
+                      ? "Dashboard"
+                      : "Landing"}
                 </span>
                 <h1 className="console-mono text-xl font-semibold tracking-tight text-[var(--console-text)]">
                   {headerTitle}
