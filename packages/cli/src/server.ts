@@ -3,8 +3,10 @@ import { serve } from "@hono/node-server";
 import { serveStatic } from "@hono/node-server/serve-static";
 import { logger } from "hono/logger";
 import { existsSync } from "node:fs";
+import type { Server } from "node:http";
 import { resolve, dirname } from "node:path";
 import { fileURLToPath } from "node:url";
+import type { ScanResultSource } from "./api/handlers.js";
 import { createApiRoutes } from "./api/routes.js";
 import { LiveScanStore } from "./live-scan.js";
 
@@ -26,16 +28,48 @@ function findWebDistPath(): string | null {
   return null;
 }
 
+function waitForListening(server: Server): Promise<void> {
+  return new Promise((resolve, reject) => {
+    const handleListening = () => {
+      server.off("error", handleError);
+      resolve();
+    };
+    const handleError = (error: Error) => {
+      server.off("listening", handleListening);
+      reject(error);
+    };
+
+    server.once("listening", handleListening);
+    server.once("error", handleError);
+  });
+}
+
+export function getServerStartupErrorMessage(error: unknown, port: number): string {
+  if (
+    typeof error === "object" &&
+    error !== null &&
+    "code" in error &&
+    error.code === "EADDRINUSE"
+  ) {
+    return `Port ${port} 已被占用，请关闭现有 CodeSesh 进程或改用 --port 指定其他端口。`;
+  }
+
+  return error instanceof Error ? error.message : `启动服务器失败: ${String(error)}`;
+}
+
 export async function createServer(
   port: number,
-  store: LiveScanStore,
+  store: ScanResultSource & Partial<Pick<LiveScanStore, "subscribe" | "shutdown">>,
 ): Promise<{ url: string; shutdown: () => void }> {
   const app = new Hono();
 
   app.use("*", logger());
 
   // API routes
-  app.route("/api", createApiRoutes(store, store));
+  app.route(
+    "/api",
+    createApiRoutes(store, "subscribe" in store ? (store as LiveScanStore) : undefined),
+  );
 
   // Serve static files from web dist (if available)
   const webDistPath = findWebDistPath();
@@ -47,13 +81,25 @@ export async function createServer(
 
   const server = serve({ fetch: app.fetch, port });
 
+  try {
+    await waitForListening(server);
+  } catch (error) {
+    server.close();
+    if (store.shutdown) {
+      await store.shutdown();
+    }
+    throw new Error(getServerStartupErrorMessage(error, port));
+  }
+
   const url = `http://localhost:${port}`;
 
   return {
     url,
     shutdown: () => {
       server.close();
-      void store.shutdown();
+      if (store.shutdown) {
+        void store.shutdown();
+      }
     },
   };
 }

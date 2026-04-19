@@ -1,13 +1,15 @@
 import { existsSync } from "node:fs";
-import { dirname, join } from "node:path";
+import { dirname, isAbsolute, join } from "node:path";
 import chokidar, { type FSWatcher } from "chokidar";
 import {
   createRegisteredAgents,
+  filterSessions,
   getCursorDataPath,
   resolveProviderRoots,
   scanSessions,
   type BaseAgent,
   type ScanResult,
+  type ScanOptions,
   type SessionHead,
 } from "@codesesh/core";
 
@@ -22,6 +24,11 @@ export interface SessionsUpdatedEvent {
 }
 
 type StoreListener = (event: SessionsUpdatedEvent) => void;
+
+interface WatchTarget {
+  path: string;
+  depth?: number;
+}
 
 function sortSessions(sessions: SessionHead[]): SessionHead[] {
   return [...sessions].sort(
@@ -87,13 +94,17 @@ function buildUpdateEvent(
   };
 }
 
-function closestWatchablePath(targetPath: string): string {
+function closestWatchablePath(targetPath: string): string | null {
+  if (!isAbsolute(targetPath) && !existsSync(targetPath)) {
+    return null;
+  }
+
   let current = targetPath;
 
   while (!existsSync(current)) {
     const parent = dirname(current);
     if (parent === current) {
-      break;
+      return null;
     }
     current = parent;
   }
@@ -101,26 +112,35 @@ function closestWatchablePath(targetPath: string): string {
   return current;
 }
 
-function resolveAgentWatchPaths(agentName: string): string[] {
+function resolveAgentWatchTargets(agentName: string): WatchTarget[] {
   const roots = resolveProviderRoots();
   const cursorDataPath = getCursorDataPath();
 
   switch (agentName) {
     case "claudecode":
-      return [join(roots.claudeRoot, "projects"), "data/claudecode"];
+      return [
+        { path: join(roots.claudeRoot, "projects"), depth: 2 },
+        { path: "data/claudecode", depth: 2 },
+      ];
     case "codex":
-      return [join(roots.codexRoot, "sessions")];
+      return [{ path: join(roots.codexRoot, "sessions"), depth: 3 }];
     case "cursor":
       return cursorDataPath
         ? [
-            join(cursorDataPath, "globalStorage", "state.vscdb"),
-            join(cursorDataPath, "workspaceStorage"),
+            { path: join(cursorDataPath, "globalStorage", "state.vscdb") },
+            { path: join(cursorDataPath, "workspaceStorage"), depth: 2 },
           ]
         : [];
     case "kimi":
-      return [join(roots.kimiRoot, "sessions"), "data/kimi"];
+      return [
+        { path: join(roots.kimiRoot, "sessions"), depth: 2 },
+        { path: "data/kimi", depth: 2 },
+      ];
     case "opencode":
-      return [join(roots.opencodeRoot, "opencode.db"), "data/opencode/opencode.db"];
+      return [
+        { path: join(roots.opencodeRoot, "opencode.db") },
+        { path: "data/opencode/opencode.db" },
+      ];
     default:
       return [];
   }
@@ -137,15 +157,20 @@ export class LiveScanStore {
   private pendingRefreshes = new Set<string>();
   private watchers: FSWatcher[] = [];
 
-  constructor(private readonly watchEnabled = true) {}
+  constructor(
+    private readonly watchEnabled = true,
+    private readonly scanOptions: ScanOptions = {},
+  ) {}
 
   async initialize(): Promise<void> {
     const initialResult = await scanSessions({
+      ...this.scanOptions,
       useCache: true,
       smartRefresh: false,
     });
     const knownAgents = createRegisteredAgents();
     const agentMap = new Map<string, BaseAgent>();
+    const allowedAgents = this.getAllowedAgents();
 
     for (const agent of initialResult.agents) {
       agentMap.set(agent.name, agent);
@@ -156,7 +181,12 @@ export class LiveScanStore {
       }
     }
 
-    this.agents = [...agentMap.values()];
+    this.agents = [...agentMap.values()].filter((agent) => {
+      if (!allowedAgents) {
+        return true;
+      }
+      return allowedAgents.has(agent.name.toLowerCase());
+    });
 
     for (const agent of this.agents) {
       this.byAgent[agent.name] = sortSessions(initialResult.byAgent[agent.name] ?? []);
@@ -204,25 +234,56 @@ export class LiveScanStore {
     this.sessions = sortSessions(Object.values(this.byAgent).flat());
   }
 
+  private getAllowedAgents(): Set<string> | null {
+    if (!this.scanOptions.agents?.length) {
+      return null;
+    }
+    return new Set(this.scanOptions.agents.map((agent) => agent.toLowerCase()));
+  }
+
+  private applyFilters(sessions: SessionHead[]): SessionHead[] {
+    return filterSessions(sessions, this.scanOptions);
+  }
+
   private startWatching(): void {
     for (const agent of this.agents) {
-      const rawPaths = resolveAgentWatchPaths(agent.name);
-      const watchPaths = [...new Set(rawPaths.map(closestWatchablePath))];
+      const rawTargets = resolveAgentWatchTargets(agent.name);
+      const watchTargets = rawTargets
+        .map((target) => {
+          const watchPath = closestWatchablePath(target.path);
+          return watchPath ? { ...target, path: watchPath } : null;
+        })
+        .filter((target): target is WatchTarget => target !== null)
+        .filter(
+          (target, index, items) =>
+            items.findIndex((item) => item.path === target.path && item.depth === target.depth) ===
+            index,
+        );
 
-      if (watchPaths.length === 0) {
+      if (watchTargets.length === 0) {
         continue;
       }
 
-      const watcher = chokidar.watch(watchPaths, {
-        ignoreInitial: true,
-        awaitWriteFinish: {
-          stabilityThreshold: 250,
-          pollInterval: 100,
+      const watcher = chokidar.watch(
+        watchTargets.map((target) => target.path),
+        {
+          ignoreInitial: true,
+          awaitWriteFinish: {
+            stabilityThreshold: 250,
+            pollInterval: 100,
+          },
+          depth: watchTargets.reduce(
+            (maxDepth, target) => Math.max(maxDepth, target.depth ?? 0),
+            0,
+          ),
         },
-      });
+      );
 
       watcher.on("all", () => {
         this.scheduleRefresh(agent.name);
+      });
+      watcher.on("error", (error) => {
+        console.error(`[${agent.name}] File watcher failed:`, error);
       });
 
       this.watchers.push(watcher);
@@ -291,6 +352,8 @@ export class LiveScanStore {
       nextSessions = await Promise.resolve(agent.scan());
       this.refreshTimestamps.set(agentName, Date.now());
     }
+
+    nextSessions = this.applyFilters(nextSessions);
 
     const event = buildUpdateEvent(agentName, previousSessions, nextSessions);
     this.byAgent[agentName] = sortSessions(nextSessions);

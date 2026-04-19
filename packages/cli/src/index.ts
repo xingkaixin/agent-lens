@@ -1,14 +1,9 @@
 import { defineCommand, runMain } from "citty";
-import { createServer } from "./server.js";
+import { createServer, getServerStartupErrorMessage } from "./server.js";
+import { LiveScanStore } from "./live-scan.js";
 import { printScanResults } from "./output.js";
 import { VERSION } from "./version.js";
-import {
-  scanSessionsAsync,
-  createRegisteredAgents,
-  getAgentInfoMap,
-  type ScanOptions,
-  perf,
-} from "@codesesh/core";
+import { createRegisteredAgents, getAgentInfoMap, type ScanOptions, perf } from "@codesesh/core";
 
 function parseDateToTimestamp(dateStr: string): number {
   const date = new Date(dateStr);
@@ -150,8 +145,9 @@ const main = defineCommand({
       useCache: useCache,
     };
 
-    // Scan sessions (parallel)
-    const result = await scanSessionsAsync(scanOptions);
+    const store = new LiveScanStore(!jsonOnly, scanOptions);
+    await store.initialize();
+    const result = store.getSnapshot();
 
     if (trace) {
       console.log(perf.getReport());
@@ -179,9 +175,15 @@ const main = defineCommand({
     printScanResults(agents, result);
 
     // Start server
-    const { url } = await createServer(port, result);
+    let url: string;
+    try {
+      ({ url } = await createServer(port, store));
+    } catch (error) {
+      console.error(getServerStartupErrorMessage(error, port));
+      process.exit(1);
+    }
 
-    console.log(`  http://localhost:${port}`);
+    console.log(`  ${url}`);
     console.log("");
 
     if (!noOpen) {

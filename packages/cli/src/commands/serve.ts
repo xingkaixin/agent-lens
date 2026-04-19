@@ -1,7 +1,7 @@
 import { defineCommand } from "citty";
-import { createServer } from "../server.js";
+import { createServer, getServerStartupErrorMessage } from "../server.js";
 import { printScanResults } from "../output.js";
-import { createRegisteredAgents } from "@codesesh/core";
+import { createRegisteredAgents, type ScanOptions } from "@codesesh/core";
 import { LiveScanStore } from "../live-scan.js";
 
 export const serveCommand = defineCommand({
@@ -42,7 +42,15 @@ export const serveCommand = defineCommand({
     const port = parseInt(args.port as string, 10) || 4321;
     const noOpen = args["no-open"] as boolean;
     const jsonOnly = args.json as boolean;
-    const store = new LiveScanStore(!jsonOnly);
+    const scanOptions: ScanOptions = {
+      agents: args.agent
+        ? (args.agent as string).split(",").map((agent) => agent.trim())
+        : undefined,
+      cwd: args.cwd as string | undefined,
+      from: args.from ? new Date(args.from as string).getTime() : undefined,
+      to: args.to ? new Date(args.to as string).getTime() : undefined,
+    };
+    const store = new LiveScanStore(!jsonOnly, scanOptions);
 
     await store.initialize();
     const result = store.getSnapshot();
@@ -71,7 +79,13 @@ export const serveCommand = defineCommand({
     printScanResults(agents, result);
 
     // Start server
-    const { url } = await createServer(port, store);
+    let url: string;
+    try {
+      ({ url } = await createServer(port, store));
+    } catch (error) {
+      console.error(getServerStartupErrorMessage(error, port));
+      process.exit(1);
+    }
 
     if (!noOpen) {
       const open = (await import("open")).default;
