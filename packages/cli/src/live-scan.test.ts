@@ -1,4 +1,5 @@
-import { describe, expect, it, vi, afterEach } from "vitest";
+import { join } from "node:path";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import { resolveAgentWatchTargets } from "./live-scan.js";
 
 describe("resolveAgentWatchTargets", () => {
@@ -10,7 +11,7 @@ describe("resolveAgentWatchTargets", () => {
     vi.stubEnv("CODEX_HOME", "/tmp/codex-home");
 
     expect(resolveAgentWatchTargets("codex")).toEqual([
-      { path: "/tmp/codex-home/sessions", depth: 4 },
+      { path: join("/tmp/codex-home", "sessions"), depth: 4 },
     ]);
   });
 
@@ -18,7 +19,7 @@ describe("resolveAgentWatchTargets", () => {
     vi.stubEnv("CLAUDE_CONFIG_DIR", "/tmp/claude-home");
 
     expect(resolveAgentWatchTargets("claudecode")).toEqual([
-      { path: "/tmp/claude-home/projects", depth: 2 },
+      { path: join("/tmp/claude-home", "projects"), depth: 2 },
       { path: "data/claudecode", depth: 2 },
     ]);
   });
