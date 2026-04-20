@@ -121,6 +121,11 @@ function formatRelativeTime(timestamp?: number) {
   return `${days}d ago`;
 }
 
+interface BreadcrumbItem {
+  label: string;
+  to?: string;
+}
+
 export default function App() {
   const [agents, setAgents] = useState<AgentInfo[]>([]);
   const [sessions, setSessions] = useState<SessionHead[]>([]);
@@ -346,6 +351,11 @@ export default function App() {
       }));
   }, [agents]);
 
+  const activeAgent = useMemo(
+    () => agents.find((agent) => agent.name.toLowerCase() === activeAgentKey) ?? null,
+    [activeAgentKey, agents],
+  );
+
   // Header
   let headerTitle = "CodeSesh";
   let headerSubtitle = "Select an agent to browse sessions";
@@ -356,8 +366,7 @@ export default function App() {
       : "Aggregated view across all agents";
   }
   if (viewState.mode === "agent" && activeAgentKey) {
-    const agent = agents.find((a) => a.name.toLowerCase() === activeAgentKey);
-    headerTitle = agent?.displayName ?? activeAgentKey;
+    headerTitle = activeAgent?.displayName ?? activeAgentKey;
     headerSubtitle = `${sidebarSessions.length} sessions`;
   }
   if (viewState.mode === "session") {
@@ -378,6 +387,45 @@ export default function App() {
     headerTitle = "Session Not Found";
     headerSubtitle = `Session not found in /${activeAgentKey}`;
   }
+
+  const breadcrumbItems = useMemo<BreadcrumbItem[]>(() => {
+    const dashboardCrumb: BreadcrumbItem = {
+      label: "Dashboard",
+      to: viewState.mode === "root" ? undefined : "/",
+    };
+
+    if (viewState.mode === "root") {
+      return [{ label: "Dashboard" }];
+    }
+
+    if (viewState.mode === "missingAgent") {
+      return [dashboardCrumb, { label: viewState.attemptedKey }];
+    }
+
+    const agentLabel = activeAgent?.displayName ?? activeAgentKey ?? "Unknown Agent";
+    const agentCrumb: BreadcrumbItem = {
+      label: agentLabel,
+      to: viewState.mode === "session" ? `/${activeAgentKey}` : undefined,
+    };
+
+    if (viewState.mode === "agent") {
+      return [dashboardCrumb, { label: agentLabel }];
+    }
+
+    if (viewState.mode === "missingSession") {
+      return [dashboardCrumb, agentCrumb, { label: viewState.attemptedSessionSlug }];
+    }
+
+    if (viewState.mode === "session") {
+      return [
+        dashboardCrumb,
+        agentCrumb,
+        { label: session?.title || viewState.activeSessionSlug || "Conversation" },
+      ];
+    }
+
+    return [dashboardCrumb, { label: "Invalid Route" }];
+  }, [activeAgent, activeAgentKey, session?.title, viewState]);
 
   // Content
   let content: ReactNode;
@@ -465,9 +513,22 @@ export default function App() {
           <div className="console-scrollbar flex-1 space-y-8 overflow-y-auto px-4 py-6">
             <section>
               <h3 className="console-mono mb-3 text-xs font-bold uppercase text-[var(--console-text)]">
-                AGENT
+                NAVIGATION
               </h3>
               <ul className="space-y-1">
+                <li>
+                  <Link
+                    to="/"
+                    className={`flex items-center gap-2 rounded-sm border px-3 py-1.5 text-left transition-colors ${
+                      viewState.mode === "root"
+                        ? "border-[var(--console-border-strong)] bg-white text-[var(--console-text)]"
+                        : "border-transparent text-[var(--console-muted)] hover:border-[var(--console-border)] hover:bg-[var(--console-surface-muted)]"
+                    }`}
+                  >
+                    <img src="/logo.svg?v=3" alt="Dashboard" className="size-3.5 rounded-[2px]" />
+                    <span className="console-mono line-clamp-1 flex-1 text-xs">Dashboard</span>
+                  </Link>
+                </li>
                 {agents.map((agent) => {
                   const key = agent.name.toLowerCase();
                   const isSelected = key === activeAgentKey;
@@ -476,7 +537,7 @@ export default function App() {
                     <li key={agent.name}>
                       <Link
                         to={`/${key}`}
-                        className={`flex items-center gap-2 rounded-sm border px-3 py-1.5 text-left transition-colors ${
+                        className={`ml-4 flex items-center gap-2 rounded-sm border px-3 py-1.5 text-left transition-colors ${
                           isSelected
                             ? "border-[var(--console-border-strong)] bg-white text-[var(--console-text)]"
                             : "border-transparent text-[var(--console-muted)] hover:border-[var(--console-border)] hover:bg-[var(--console-surface-muted)]"
@@ -576,6 +637,26 @@ export default function App() {
         <main className="flex min-w-0 flex-1 flex-col">
           <section className="shrink-0 border-b border-[var(--console-border)] bg-white/70 px-4 py-4 backdrop-blur-sm md:px-8">
             <div>
+              <nav
+                aria-label="Breadcrumb"
+                className="console-mono mb-2 flex flex-wrap items-center gap-1 text-[11px] text-[var(--console-muted)]"
+              >
+                {breadcrumbItems.map((item, index) => (
+                  <span key={`${item.label}-${index}`} className="flex items-center gap-1">
+                    {item.to ? (
+                      <Link
+                        to={item.to}
+                        className="transition-colors hover:text-[var(--console-text)]"
+                      >
+                        {item.label}
+                      </Link>
+                    ) : (
+                      <span className="text-[var(--console-text)]">{item.label}</span>
+                    )}
+                    {index < breadcrumbItems.length - 1 ? <span>/</span> : null}
+                  </span>
+                ))}
+              </nav>
               <div className="flex items-center gap-2">
                 <span className="console-mono rounded-sm border border-[var(--console-border)] bg-[var(--console-surface-muted)] px-1.5 py-0.5 text-[10px] font-bold uppercase text-[var(--console-muted)]">
                   {viewState.mode === "session"
