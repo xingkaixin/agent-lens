@@ -112,7 +112,7 @@ function closestWatchablePath(targetPath: string): string | null {
   return current;
 }
 
-function resolveAgentWatchTargets(agentName: string): WatchTarget[] {
+export function resolveAgentWatchTargets(agentName: string): WatchTarget[] {
   const roots = resolveProviderRoots();
   const cursorDataPath = getCursorDataPath();
 
@@ -123,7 +123,7 @@ function resolveAgentWatchTargets(agentName: string): WatchTarget[] {
         { path: "data/claudecode", depth: 2 },
       ];
     case "codex":
-      return [{ path: join(roots.codexRoot, "sessions"), depth: 3 }];
+      return [{ path: join(roots.codexRoot, "sessions"), depth: 4 }];
     case "cursor":
       return cursorDataPath
         ? [
