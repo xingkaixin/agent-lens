@@ -30,8 +30,14 @@ describe("CodexAgent cache refresh", () => {
 
   it("detects file set changes even when file count stays the same", () => {
     const tempDir = mkdtempSync(join(tmpdir(), "codesesh-codex-test-"));
-    const oldA = join(tempDir, "rollout-2026-04-20T10-00-00-019daaaa-aaaa-7aaa-aaaa-aaaaaaaaaaaa.jsonl");
-    const newC = join(tempDir, "rollout-2026-04-20T10-05-00-019dcccc-cccc-7ccc-cccc-cccccccccccc.jsonl");
+    const oldA = join(
+      tempDir,
+      "rollout-2026-04-20T10-00-00-019daaaa-aaaa-7aaa-aaaa-aaaaaaaaaaaa.jsonl",
+    );
+    const newC = join(
+      tempDir,
+      "rollout-2026-04-20T10-05-00-019dcccc-cccc-7ccc-cccc-cccccccccccc.jsonl",
+    );
 
     writeFileSync(oldA, '{"type":"session_meta","payload":{"timestamp":"2026-04-20T10:00:00Z"}}\n');
     writeFileSync(newC, '{"type":"session_meta","payload":{"timestamp":"2026-04-20T10:05:00Z"}}\n');
@@ -69,7 +75,10 @@ describe("CodexAgent cache refresh", () => {
       "rollout-2026-04-20T10-00-00-019daaaa-aaaa-7aaa-aaaa-aaaaaaaaaaaa.jsonl",
     );
 
-    writeFileSync(recentFile, '{"type":"session_meta","payload":{"timestamp":"2026-04-20T10:00:00Z"}}\n');
+    writeFileSync(
+      recentFile,
+      '{"type":"session_meta","payload":{"timestamp":"2026-04-20T10:00:00Z"}}\n',
+    );
 
     const agent = new CodexAgent() as any;
     agent.basePath = tempDir;
@@ -94,8 +103,14 @@ describe("CodexAgent cache refresh", () => {
 
   it("removes deleted sessions and adds new sessions during incremental scan", () => {
     const tempDir = mkdtempSync(join(tmpdir(), "codesesh-codex-test-"));
-    const oldA = join(tempDir, "rollout-2026-04-20T10-00-00-019daaaa-aaaa-7aaa-aaaa-aaaaaaaaaaaa.jsonl");
-    const newC = join(tempDir, "rollout-2026-04-20T10-05-00-019dcccc-cccc-7ccc-cccc-cccccccccccc.jsonl");
+    const oldA = join(
+      tempDir,
+      "rollout-2026-04-20T10-00-00-019daaaa-aaaa-7aaa-aaaa-aaaaaaaaaaaa.jsonl",
+    );
+    const newC = join(
+      tempDir,
+      "rollout-2026-04-20T10-05-00-019dcccc-cccc-7ccc-cccc-cccccccccccc.jsonl",
+    );
 
     mkdirSync(tempDir, { recursive: true });
     writeFileSync(oldA, "");

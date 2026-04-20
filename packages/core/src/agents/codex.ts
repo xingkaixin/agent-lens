@@ -652,7 +652,8 @@ export class CodexAgent extends BaseAgent {
     }
 
     const payload = (firstRecord["payload"] ?? {}) as Record<string, unknown>;
-    const createdAt = parseTimestampMs(firstRecord) || parseTimestampMs(payload) || statSync(filePath).mtimeMs;
+    const createdAt =
+      parseTimestampMs(firstRecord) || parseTimestampMs(payload) || statSync(filePath).mtimeMs;
 
     // Try title from session index
     const indexTitle = this.getTitleForSession(sessionId);
@@ -681,7 +682,8 @@ export class CodexAgent extends BaseAgent {
         const data = JSON.parse(line);
         const recordType = String(data["type"] ?? "");
         const recordTs =
-          parseTimestampMs(data) || parseTimestampMs((data["payload"] ?? {}) as Record<string, unknown>);
+          parseTimestampMs(data) ||
+          parseTimestampMs((data["payload"] ?? {}) as Record<string, unknown>);
         if (recordTs > updatedAt) updatedAt = recordTs;
 
         if (recordType === "session_meta" || recordType === "turn_context") {

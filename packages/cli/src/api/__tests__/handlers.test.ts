@@ -286,7 +286,9 @@ describe("handleGetDashboard", () => {
     expect(response.recentSessions[0]?.id).toBe("old-active");
 
     const todayKey = new Date(now).toLocaleDateString("en-CA").replaceAll("/", "-");
-    const todayBucket = response.dailyActivity.find((bucket: { date: string }) => bucket.date === todayKey);
+    const todayBucket = response.dailyActivity.find(
+      (bucket: { date: string }) => bucket.date === todayKey,
+    );
     expect(todayBucket?.sessions).toBe(1);
     expect(todayBucket?.messages).toBe(7);
   });

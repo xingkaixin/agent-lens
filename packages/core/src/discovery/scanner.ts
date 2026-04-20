@@ -172,53 +172,6 @@ async function scanAgentSmart(
 }
 
 /**
- * 后台异步刷新 Agent 数据
- */
-async function refreshAgentAsync(
-  agent: BaseAgent,
-  cachedSessions: SessionHead[],
-  cacheTimestamp: number,
-  onProgress?: (progress: ScanProgress) => void,
-): Promise<void> {
-  try {
-    // 检测变更
-    onProgress?.({ agent: agent.name, phase: "checking" });
-
-    const checkResult = await Promise.resolve(
-      agent.checkForChanges!(cacheTimestamp, cachedSessions),
-    );
-
-    if (!checkResult.hasChanges) {
-      onProgress?.({ agent: agent.name, phase: "complete" });
-      return;
-    }
-
-    // 增量刷新
-    onProgress?.({
-      agent: agent.name,
-      phase: "incremental",
-      changedCount: checkResult.changedIds?.length,
-    });
-
-    const updatedSessions = await Promise.resolve(
-      agent.incrementalScan!(cachedSessions, checkResult.changedIds || []),
-    );
-
-    // 保存更新后的缓存
-    saveCachedSessions(agent.name, updatedSessions, buildAgentCacheMeta(agent));
-
-    onProgress?.({
-      agent: agent.name,
-      phase: "complete",
-      newCount: updatedSessions.length,
-    });
-  } catch (err) {
-    // 刷新失败不中断主流程
-    console.error(`[${agent.name}] Background refresh failed:`, err);
-  }
-}
-
-/**
  * 完整扫描 Agent（无缓存时使用）
  */
 async function scanAgentFull(
