@@ -1,5 +1,5 @@
 import { existsSync, readdirSync, readFileSync, statSync } from "node:fs";
-import { join, basename } from "node:path";
+import { join, basename, dirname } from "node:path";
 import { BaseAgent } from "./base.js";
 import type { SessionHead, SessionData, Message, MessagePart } from "../types/index.js";
 import { resolveProviderRoots, firstExisting } from "../discovery/paths.js";
@@ -7,6 +7,8 @@ import { parseJsonlLines } from "../utils/jsonl.js";
 import { resolveSessionTitle, basenameTitle } from "../utils/title-fallback.js";
 import { perf } from "../utils/perf.js";
 import type { SessionCacheMeta, ChangeCheckResult } from "./base.js";
+
+const RECENT_SESSION_REVALIDATION_WINDOW_MS = 24 * 60 * 60 * 1000;
 
 interface SessionMeta extends SessionCacheMeta {
   id: string;
@@ -189,21 +191,35 @@ export class ClaudeCodeAgent extends BaseAgent {
       return { hasChanges: false, timestamp: Date.now() };
     }
 
-    const changedIds: string[] = [];
+    const now = Date.now();
+    const changedIds = new Set<string>();
+    const recentSessions = cachedSessions.filter(
+      (session) => now - session.time_created <= RECENT_SESSION_REVALIDATION_WINDOW_MS,
+    );
+
+    for (const session of recentSessions) {
+      changedIds.add(session.id);
+      const meta = this.sessionMetaMap.get(session.id);
+      if (!meta) continue;
+      delete this.sessionsIndexCache[basename(dirname(meta.sourcePath))];
+    }
 
     for (const session of cachedSessions) {
       const meta = this.sessionMetaMap.get(session.id);
-      if (!meta) continue;
+      if (!meta) {
+        changedIds.add(session.id);
+        continue;
+      }
 
       try {
         const stat = statSync(meta.sourcePath);
         // 如果文件修改时间晚于缓存时间，说明有变更
         if (stat.mtimeMs > sinceTimestamp) {
-          changedIds.push(session.id);
+          changedIds.add(session.id);
         }
       } catch {
         // 文件可能被删除，也视为变更
-        changedIds.push(session.id);
+        changedIds.add(session.id);
       }
     }
 
@@ -216,14 +232,14 @@ export class ClaudeCodeAgent extends BaseAgent {
       const hasNewFiles = totalFiles > cachedSessions.length;
 
       return {
-        hasChanges: changedIds.length > 0 || hasNewFiles,
-        changedIds,
+        hasChanges: changedIds.size > 0 || hasNewFiles,
+        changedIds: Array.from(changedIds),
         timestamp: Date.now(),
       };
     } catch {
       return {
-        hasChanges: changedIds.length > 0,
-        changedIds,
+        hasChanges: changedIds.size > 0,
+        changedIds: Array.from(changedIds),
         timestamp: Date.now(),
       };
     }

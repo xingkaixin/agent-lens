@@ -5,7 +5,7 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import { CodexAgent } from "../codex.js";
 import type { SessionHead } from "../../types/index.js";
 
-function makeSession(id: string): SessionHead {
+function makeSession(id: string, overrides: Partial<SessionHead> = {}): SessionHead {
   return {
     id,
     slug: `codex/${id}`,
@@ -19,6 +19,7 @@ function makeSession(id: string): SessionHead {
       total_output_tokens: 0,
       total_cost: 0,
     },
+    ...overrides,
   };
 }
 
@@ -59,6 +60,36 @@ describe("CodexAgent cache refresh", () => {
 
     expect(result.hasChanges).toBe(true);
     expect(result.changedIds).toContain("019dbbbb-bbbb-7bbb-bbbb-bbbbbbbbbbbb");
+  });
+
+  it("revalidates recent sessions even without file changes", () => {
+    const tempDir = mkdtempSync(join(tmpdir(), "codesesh-codex-test-"));
+    const recentFile = join(
+      tempDir,
+      "rollout-2026-04-20T10-00-00-019daaaa-aaaa-7aaa-aaaa-aaaaaaaaaaaa.jsonl",
+    );
+
+    writeFileSync(recentFile, '{"type":"session_meta","payload":{"timestamp":"2026-04-20T10:00:00Z"}}\n');
+
+    const agent = new CodexAgent() as any;
+    agent.basePath = tempDir;
+    agent.sessionIndexCache = new Map([["stale", "stale"]]);
+    agent.sessionMetaMap = new Map([
+      [
+        "019daaaa-aaaa-7aaa-aaaa-aaaaaaaaaaaa",
+        { id: "019daaaa-aaaa-7aaa-aaaa-aaaaaaaaaaaa", sourcePath: recentFile },
+      ],
+    ]);
+    agent.listRolloutFiles = () => [recentFile];
+
+    const now = Date.now();
+    const result = agent.checkForChanges(now, [
+      makeSession("019daaaa-aaaa-7aaa-aaaa-aaaaaaaaaaaa", { time_created: now - 60_000 }),
+    ]);
+
+    expect(result.hasChanges).toBe(true);
+    expect(result.changedIds).toContain("019daaaa-aaaa-7aaa-aaaa-aaaaaaaaaaaa");
+    expect(agent.sessionIndexCache.size).toBe(0);
   });
 
   it("removes deleted sessions and adds new sessions during incremental scan", () => {
@@ -105,5 +136,31 @@ describe("CodexAgent cache refresh", () => {
       "019dcccc-cccc-7ccc-cccc-cccccccccccc",
     ]);
     expect(agent.sessionMetaMap.has("019dbbbb-bbbb-7bbb-bbbb-bbbbbbbbbbbb")).toBe(false);
+  });
+
+  it("uses the latest record timestamp as time_updated", () => {
+    const tempDir = mkdtempSync(join(tmpdir(), "codesesh-codex-test-"));
+    const sessionFile = join(
+      tempDir,
+      "rollout-2026-04-20T10-00-00-019daaaa-aaaa-7aaa-aaaa-aaaaaaaaaaaa.jsonl",
+    );
+
+    writeFileSync(
+      sessionFile,
+      [
+        '{"timestamp":"2026-04-20T10:00:00Z","type":"session_meta","payload":{"cwd":"/tmp/project"}}',
+        '{"timestamp":"2026-04-20T10:01:00Z","type":"response_item","payload":{"type":"message","role":"assistant","content":[{"type":"output_text","text":"hello"}]}}',
+        '{"timestamp":"2026-04-20T10:02:30Z","type":"event_msg","payload":{"type":"task_complete"}}',
+        "",
+      ].join("\n"),
+    );
+
+    const agent = new CodexAgent() as any;
+    agent.sessionIndexCache = new Map();
+
+    const head = agent.parseSessionHead(sessionFile);
+
+    expect(head?.time_created).toBe(new Date("2026-04-20T10:00:00Z").getTime());
+    expect(head?.time_updated).toBe(new Date("2026-04-20T10:02:30Z").getTime());
   });
 });

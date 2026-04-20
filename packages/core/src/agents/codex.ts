@@ -37,6 +37,8 @@ const CODEX_TOOL_TITLE_MAP: Record<string, string> = {
   subagent: "subagent",
 };
 
+const RECENT_SESSION_REVALIDATION_WINDOW_MS = 24 * 60 * 60 * 1000;
+
 // ---------------------------------------------------------------------------
 // Session ID extraction
 // ---------------------------------------------------------------------------
@@ -326,10 +328,18 @@ export class CodexAgent extends BaseAgent {
       return { hasChanges: false, timestamp: Date.now() };
     }
 
+    const now = Date.now();
     const changedIds = new Set<string>();
     const currentFiles = this.listRolloutFiles();
     const currentIds = new Set(currentFiles.map((file) => extractSessionId(file)));
     const cachedIds = new Set(cachedSessions.map((session) => session.id));
+    const recentIds = cachedSessions
+      .filter((session) => now - session.time_created <= RECENT_SESSION_REVALIDATION_WINDOW_MS)
+      .map((session) => session.id);
+
+    for (const sessionId of recentIds) {
+      changedIds.add(sessionId);
+    }
 
     for (const session of cachedSessions) {
       const meta = this.sessionMetaMap.get(session.id);
@@ -353,6 +363,9 @@ export class CodexAgent extends BaseAgent {
     }
 
     const hasAddedSessions = currentFiles.some((file) => !cachedIds.has(extractSessionId(file)));
+    if (recentIds.length > 0) {
+      this.sessionIndexCache.clear();
+    }
 
     return {
       hasChanges: changedIds.size > 0 || hasAddedSessions,
@@ -618,6 +631,7 @@ export class CodexAgent extends BaseAgent {
   }
 
   private getTitleForSession(sessionId: string): string | null {
+    this.loadSessionIndex();
     return this.sessionIndexCache.get(sessionId) ?? null;
   }
 
@@ -638,7 +652,7 @@ export class CodexAgent extends BaseAgent {
     }
 
     const payload = (firstRecord["payload"] ?? {}) as Record<string, unknown>;
-    const createdAt = parseTimestampMs(payload) || statSync(filePath).mtimeMs;
+    const createdAt = parseTimestampMs(firstRecord) || parseTimestampMs(payload) || statSync(filePath).mtimeMs;
 
     // Try title from session index
     const indexTitle = this.getTitleForSession(sessionId);
@@ -666,14 +680,15 @@ export class CodexAgent extends BaseAgent {
       try {
         const data = JSON.parse(line);
         const recordType = String(data["type"] ?? "");
+        const recordTs =
+          parseTimestampMs(data) || parseTimestampMs((data["payload"] ?? {}) as Record<string, unknown>);
+        if (recordTs > updatedAt) updatedAt = recordTs;
+
         if (recordType === "session_meta" || recordType === "turn_context") {
           const payload = (data["payload"] ?? {}) as Record<string, unknown>;
           if (!model) {
             model = extractModelName(payload["model"]);
           }
-          const p = (data["payload"] ?? {}) as Record<string, unknown>;
-          const ts = parseTimestampMs(p);
-          if (ts > updatedAt) updatedAt = ts;
           continue;
         }
 
