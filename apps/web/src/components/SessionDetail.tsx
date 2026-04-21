@@ -1700,7 +1700,11 @@ function FileTrackerSection({
       {expanded ? (
         <div className="space-y-1 border-t border-[var(--console-border)] p-2">
           {items.map((item) => (
-            <FileTrackerItem key={`${item.path}:${item.latestAnchorId}`} item={item} baseDirectory={baseDirectory} />
+            <FileTrackerItem
+              key={`${item.path}:${item.latestAnchorId}`}
+              item={item}
+              baseDirectory={baseDirectory}
+            />
           ))}
         </div>
       ) : null}
