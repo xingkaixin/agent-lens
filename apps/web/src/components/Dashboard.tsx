@@ -76,7 +76,7 @@ function DailyActivityChart({ buckets }: { buckets: DashboardDailyBucket[] }) {
             Daily Activity
           </h3>
           <p className="console-mono mt-1 text-[11px] text-[var(--console-muted)]">
-            Sessions created · last {buckets.length} days
+            Session activity · last {buckets.length} days
           </p>
         </div>
         <span className="console-mono text-right text-[11px] text-[var(--console-muted)]">

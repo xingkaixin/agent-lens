@@ -35,12 +35,7 @@ function filterSessionsByWindow(
   from: number | undefined,
   to: number | undefined,
 ): SessionHead[] {
-  if (from == null && to == null) return sessions;
-  return sessions.filter((s) => {
-    if (from != null && s.time_created < from) return false;
-    if (to != null && s.time_created > to) return false;
-    return true;
-  });
+  return filterSessionsByActivityWindow(sessions, from, to);
 }
 
 function filterSessionsByActivityWindow(
@@ -108,14 +103,7 @@ export function handleGetSessions(
   if (cwd) {
     sessions = sessions.filter((s) => s.directory.toLowerCase().includes(cwd));
   }
-
-  if (from != null) {
-    sessions = sessions.filter((s) => s.time_created >= from);
-  }
-
-  if (to != null) {
-    sessions = sessions.filter((s) => s.time_created <= to);
-  }
+  sessions = filterSessionsByActivityWindow(sessions, from, to);
 
   if (q) {
     sessions = sessions.filter((s) => s.title.toLowerCase().includes(q));

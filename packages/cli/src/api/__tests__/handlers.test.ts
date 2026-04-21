@@ -110,13 +110,19 @@ describe("handleGetAgents", () => {
     const c = makeMockContext();
     const from = Date.now() - 7 * 86400000;
     const sessions = [
-      makeSession("old", { time_created: Date.now() - 30 * 86400000 }),
-      makeSession("recent", { time_created: Date.now() - 1 * 86400000 }),
+      makeSession("old", {
+        time_created: Date.now() - 30 * 86400000,
+        time_updated: Date.now() - 30 * 86400000,
+      }),
+      makeSession("recent", {
+        time_created: Date.now() - 30 * 86400000,
+        time_updated: Date.now() - 1 * 86400000,
+      }),
     ];
     handleGetAgents(c, makeScanSource({ sessions, byAgent: { claudecode: sessions } }), { from });
     const response = c.json.mock.calls[0]![0];
     const claudecode = response.find((a: { name: string }) => a.name === "claudecode");
-    expect(claudecode.count).toBe(1); // only "recent" is within window
+    expect(claudecode.count).toBe(1);
   });
 });
 
@@ -173,8 +179,14 @@ describe("handleGetSessions", () => {
       c,
       makeScanSource({
         sessions: [
-          makeSession("old", { time_created: new Date("2023-01-01").getTime() }),
-          makeSession("new", { time_created: new Date("2025-01-01").getTime() }),
+          makeSession("old", {
+            time_created: new Date("2023-01-01").getTime(),
+            time_updated: new Date("2023-01-01").getTime(),
+          }),
+          makeSession("new", {
+            time_created: new Date("2023-01-01").getTime(),
+            time_updated: new Date("2025-01-01").getTime(),
+          }),
         ],
         byAgent: {},
       }),
@@ -182,6 +194,30 @@ describe("handleGetSessions", () => {
     const response = c.json.mock.calls[0]![0];
     expect(response.sessions).toHaveLength(1);
     expect(response.sessions[0].id).toBe("new");
+  });
+
+  it("uses activity time instead of creation time for session filters", () => {
+    const now = Date.now();
+    const c = makeMockContext({ query: { from: new Date(now - 7 * 86400000).toISOString() } });
+    handleGetSessions(
+      c,
+      makeScanSource({
+        sessions: [
+          makeSession("old-active", {
+            time_created: now - 90 * 86400000,
+            time_updated: now - 60_000,
+          }),
+          makeSession("old-idle", {
+            time_created: now - 90 * 86400000,
+            time_updated: now - 90 * 86400000,
+          }),
+        ],
+        byAgent: {},
+      }),
+    );
+    const response = c.json.mock.calls[0]![0];
+    expect(response.sessions).toHaveLength(1);
+    expect(response.sessions[0].id).toBe("old-active");
   });
 
   it("ignores invalid from date", () => {

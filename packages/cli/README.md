@@ -45,7 +45,7 @@ npx codesesh
 # Choose a custom port
 npx codesesh --port 8080
 
-# Only show sessions from the last 3 days
+# Only show sessions active in the last 3 days
 npx codesesh --days 3
 
 # Jump directly to a session
@@ -69,11 +69,11 @@ npx codesesh --trace
 | Flag        | Alias | Default | Description                                                 |
 | ----------- | ----- | ------- | ----------------------------------------------------------- |
 | `--port`    | `-p`  | `4321`  | HTTP server port                                            |
-| `--days`    | `-d`  | `7`     | Only include sessions from the last N days (`0` = all time) |
+| `--days`    | `-d`  | `7`     | Only include sessions active in the last N days (`0` = all time) |
 | `--cwd`     | —     | —       | Filter to sessions from a project directory                 |
 | `--agent`   | `-a`  | all     | Filter to specific agent(s), comma-separated                |
-| `--from`    | —     | —       | Sessions created after this date `YYYY-MM-DD`               |
-| `--to`      | —     | —       | Sessions created before this date `YYYY-MM-DD`              |
+| `--from`    | —     | —       | Sessions active after this date `YYYY-MM-DD`                |
+| `--to`      | —     | —       | Sessions active before this date `YYYY-MM-DD`               |
 | `--session` | `-s`  | —       | Directly open a session (`agent://session-id`)              |
 | `--json`    | `-j`  | `false` | Output JSON and exit (no server)                            |
 | `--no-open` | —     | `false` | Don't auto-open the browser                                 |

@@ -40,7 +40,7 @@ const main = defineCommand({
     days: {
       type: "string",
       alias: "d",
-      description: "Only include sessions from the last N days (0 = all time)",
+      description: "Only include sessions active in the last N days (0 = all time)",
       default: "7",
     },
     cwd: {
@@ -49,11 +49,11 @@ const main = defineCommand({
     },
     from: {
       type: "string",
-      description: "Sessions created after this date, YYYY-MM-DD (overrides --days)",
+      description: "Sessions active after this date, YYYY-MM-DD (overrides --days)",
     },
     to: {
       type: "string",
-      description: "Sessions created before this date (YYYY-MM-DD)",
+      description: "Sessions active before this date (YYYY-MM-DD)",
     },
     session: {
       type: "string",
@@ -158,8 +158,9 @@ const main = defineCommand({
     if (jsonOnly) {
       // Apply --days/--from/--to window to the JSON output so CLI semantics are preserved.
       const windowed = result.sessions.filter((s) => {
-        if (listDefaultFrom != null && s.time_created < listDefaultFrom) return false;
-        if (listDefaultTo != null && s.time_created > listDefaultTo) return false;
+        const activity = s.time_updated ?? s.time_created;
+        if (listDefaultFrom != null && activity < listDefaultFrom) return false;
+        if (listDefaultTo != null && activity > listDefaultTo) return false;
         return true;
       });
       const info = getAgentInfoMap(

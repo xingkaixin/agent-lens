@@ -87,13 +87,13 @@ npx codesesh --no-open
 ### Filter by Time
 
 ```bash
-# Only show sessions from the last 3 days
+# Only show sessions active in the last 3 days
 npx codesesh --days 3
 
 # Show all sessions (no time limit)
 npx codesesh --days 0
 
-# Show sessions after a specific date (overrides --days)
+# Show sessions active after a specific date (overrides --days)
 npx codesesh --from 2025-01-01
 
 # Show sessions within a date range
@@ -143,11 +143,11 @@ npx codesesh -j
 | Flag | Alias | Default | Description |
 |------|-------|---------|-------------|
 | `--port` | `-p` | `4321` | HTTP server port |
-| `--days` | `-d` | `7` | Only include sessions from the last N days (`0` = all time) |
+| `--days` | `-d` | `7` | Only include sessions active in the last N days (`0` = all time) |
 | `--cwd` | — | — | Filter to sessions from a project directory (`.` = current dir) |
 | `--agent` | `-a` | all | Filter to specific agent(s), comma-separated |
-| `--from` | — | — | Sessions created after this date `YYYY-MM-DD` (overrides `--days`) |
-| `--to` | — | — | Sessions created before this date `YYYY-MM-DD` |
+| `--from` | — | — | Sessions active after this date `YYYY-MM-DD` (overrides `--days`) |
+| `--to` | — | — | Sessions active before this date `YYYY-MM-DD` |
 | `--session` | `-s` | — | Directly open a session (`agent://session-id`) |
 | `--json` | `-j` | `false` | Output JSON and exit (no server) |
 | `--no-open` | — | `false` | Don't auto-open the browser |
