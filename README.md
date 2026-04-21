@@ -17,9 +17,11 @@ CodeSesh believes your session history belongs to **you** — and you deserve to
 **What you get:**
 
 - **Unified Timeline** — Browse sessions across all your AI agents in a single, searchable interface
+- **Full-Text Search** — Search across session titles and conversation content with highlighted matches
 - **Dashboard & Activity Trends** — Track daily activity, agent distribution, recent sessions, and latest activity at a glance
 - **Full Conversation Replay** — Read every message, tool call, and reasoning step exactly as it happened
 - **Cost & Token Visibility** — See exactly how many tokens and dollars each session consumed
+- **SQLite-Backed Cache & Search Index** — Restore session lists quickly and reuse the same local store for search
 - **Zero Configuration** — Just run it. CodeSesh auto-discovers everything on your filesystem
 - **100% Local & Private** — Nothing leaves your machine. No accounts, no cloud sync, no telemetry
 - **Live Refresh** — File changes are picked up automatically, and the UI stays in sync without a restart
@@ -164,10 +166,11 @@ npx codesesh -j
 Once CodeSesh is running, here's what you'll find:
 
 1. **Dashboard** — Start from a summary view with total sessions, total messages, total tokens, latest activity, daily activity, agent distribution, and recent sessions.
-2. **Agent Sidebar** — A panel listing all detected agents with session counts. Click any agent to filter the view.
-3. **Session List** — Browse your sessions sorted by most recent. Each card shows the session title, working directory, message count, and total cost at a glance.
-4. **Session Detail** — Click any session to open a full replay. You'll see every user message, assistant response, tool invocation, and reasoning step exactly as it unfolded.
-5. **Live Updates** — New or changed local sessions are reflected automatically while the server is running.
+2. **Search** — Query session titles and conversation text from the top bar, then jump into highlighted matches.
+3. **Agent Sidebar** — A panel listing all detected agents with session counts. Click any agent to filter the view.
+4. **Session List** — Browse your sessions sorted by most recent. Each card shows the session title, working directory, message count, and total cost at a glance.
+5. **Session Detail** — Click any session to open a full replay. You'll see every user message, assistant response, tool invocation, and reasoning step exactly as it unfolded.
+6. **Live Updates** — New or changed local sessions are reflected automatically while the server is running.
 
 ---
 

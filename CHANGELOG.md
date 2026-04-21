@@ -1,5 +1,14 @@
 # Changelog
 
+## [0.3.0] - 2026-04-21
+
+- feat(core): migrate session cache from JSON files to a unified SQLite database
+- feat(web): add full-text session search powered by SQLite FTS, with highlighted matches in the UI
+- feat(cli): keep the live refresh pipeline and search index in sync as sessions change
+- docs: add SQLite storage documentation covering schema, indexing, and data flow
+- feat(web): improve code formatting consistency across session detail rendering
+- docs: clarify that time filters use session activity time instead of creation time
+
 ## [0.2.0] - 2026-04-20
 
 - feat(cli): add live session refresh with filesystem watchers and server-sent events

@@ -10,6 +10,8 @@ import {
   Timer,
   Check,
   Copy,
+  Search,
+  Database,
   type LucideIcon,
 } from "lucide-react";
 
@@ -68,7 +70,7 @@ export function Hero() {
         </h1>
         <p className="mx-auto mt-5 max-w-md text-sm leading-relaxed text-[var(--console-muted)]">
           CodeSesh finds sessions across tools and directories, then turns them into a live
-          dashboard and a full replayable history.
+          dashboard, full-text search, and a replayable history backed by local SQLite storage.
         </p>
 
         {/* Terminal demo — part of hero */}
@@ -142,9 +144,14 @@ const features: FeatureItem[] = [
     description: "Track daily activity, agent distribution, recent sessions, and latest activity.",
   },
   {
+    icon: Search,
+    title: "Full-Text Search",
+    description: "Search session titles and conversation content with highlighted matches.",
+  },
+  {
     icon: Eye,
     title: "Unified Timeline",
-    description: "Browse sessions across all your AI agents in a single, searchable interface.",
+    description: "Browse sessions across all your AI agents in a single interface.",
   },
   {
     icon: Terminal,
@@ -160,6 +167,11 @@ const features: FeatureItem[] = [
     icon: BarChart3,
     title: "Cost & Token Visibility",
     description: "See exactly how many tokens and dollars each session consumed.",
+  },
+  {
+    icon: Database,
+    title: "SQLite-Backed Cache",
+    description: "Reuse one local database for fast session restore and full-text indexing.",
   },
   {
     icon: Settings,
