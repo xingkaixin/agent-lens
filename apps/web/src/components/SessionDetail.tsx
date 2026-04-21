@@ -86,6 +86,32 @@ interface ToolDisplayStrategy {
   outputContent: ToolOutputContent;
 }
 
+type FileChangeKind = "read" | "edit" | "write" | "delete";
+
+interface FileChangeRecord {
+  kind: FileChangeKind;
+  path: string;
+  anchorId: string;
+  time: number;
+  toolLabel: string;
+}
+
+interface FileChangeSummaryItem {
+  path: string;
+  count: number;
+  latestTime: number;
+  latestAnchorId: string;
+  toolLabel: string;
+  anchors: Array<{ anchorId: string; time: number; toolLabel: string }>;
+}
+
+interface FileChangeSummary {
+  read: FileChangeSummaryItem[];
+  edit: FileChangeSummaryItem[];
+  write: FileChangeSummaryItem[];
+  delete: FileChangeSummaryItem[];
+}
+
 // ---------------------------------------------------------------------------
 // Constants
 // ---------------------------------------------------------------------------
@@ -256,6 +282,238 @@ function toPlainText(value: unknown) {
 
 function toStringValue(value: unknown) {
   return typeof value === "string" ? value : "";
+}
+
+function normalizeToolLabel(part: MessagePart) {
+  if (typeof part.title === "string" && part.title.trim()) {
+    return part.title.trim().replace(/^tool:\s*/i, "");
+  }
+  if (typeof part.tool === "string" && part.tool.trim()) return part.tool.trim();
+  return "tool";
+}
+
+function normalizeToolName(part: MessagePart) {
+  return normalizeToolLabel(part).trim().toLowerCase();
+}
+
+function buildToolAnchorId(messageIndex: number, toolIndex: number) {
+  return `tool-${messageIndex}-${toolIndex}`;
+}
+
+function looksLikeFilePath(value: string) {
+  const text = value.trim();
+  if (!text || text.length > 300) return false;
+  if (text.includes("\n")) return false;
+  if (/^[a-z]+:\/\//i.test(text)) return false;
+  if (/[<>{}]/.test(text)) return false;
+  if (text.startsWith("/")) return true;
+  if (text.startsWith("./") || text.startsWith("../") || text.startsWith("~/")) return true;
+  if (text.includes("/") || text.includes("\\")) return true;
+  return /^[A-Za-z0-9_.@-]+\.[A-Za-z0-9_-]+$/.test(text);
+}
+
+function shouldTreatAsPathKey(key: string) {
+  const normalized = key.trim().toLowerCase();
+  if (!normalized) return false;
+  if (
+    normalized.includes("command") ||
+    normalized.includes("content") ||
+    normalized.includes("text") ||
+    normalized.includes("prompt") ||
+    normalized.includes("url") ||
+    normalized.includes("body") ||
+    normalized.includes("title") ||
+    normalized.includes("description") ||
+    normalized === "cwd" ||
+    normalized === "workdir" ||
+    normalized === "directory"
+  ) {
+    return false;
+  }
+  return (
+    normalized === "path" ||
+    normalized === "paths" ||
+    normalized.includes("file") ||
+    normalized.includes("path")
+  );
+}
+
+function collectPathsFromValue(
+  value: unknown,
+  keyHint: string,
+  paths: Set<string>,
+  depth = 0,
+): void {
+  if (value == null || depth > 4) return;
+
+  if (typeof value === "string") {
+    if (shouldTreatAsPathKey(keyHint) && looksLikeFilePath(value)) {
+      paths.add(value.trim());
+    }
+    return;
+  }
+
+  if (Array.isArray(value)) {
+    for (const item of value) {
+      collectPathsFromValue(item, keyHint, paths, depth + 1);
+    }
+    return;
+  }
+
+  if (typeof value === "object") {
+    for (const [key, nested] of Object.entries(value as Record<string, unknown>)) {
+      collectPathsFromValue(nested, key, paths, depth + 1);
+    }
+  }
+}
+
+function extractPathsFromToolInput(inputValue: unknown) {
+  const paths = new Set<string>();
+  collectPathsFromValue(inputValue, "", paths);
+  return [...paths];
+}
+
+function getToolInputValue(part: MessagePart) {
+  return part.state?.arguments ?? part.state?.input ?? part.input ?? null;
+}
+
+function classifyToolKind(part: MessagePart): FileChangeKind | null {
+  const toolName = normalizeToolName(part);
+  if (toolName === "read") return "read";
+  if (
+    toolName === "edit" ||
+    toolName === "multiedit" ||
+    toolName === "apply_patch" ||
+    toolName === "notebookedit"
+  ) {
+    return "edit";
+  }
+  if (toolName === "write" || toolName === "create_file" || toolName === "write_file") {
+    return "write";
+  }
+  if (toolName === "delete" || toolName === "delete_file") {
+    return "delete";
+  }
+  return null;
+}
+
+function summarizeFileChangeItems(records: FileChangeRecord[]): FileChangeSummaryItem[] {
+  const grouped = new Map<string, FileChangeSummaryItem>();
+
+  for (const record of records) {
+    const current = grouped.get(record.path);
+    if (current) {
+      current.count += 1;
+      current.anchors.push({
+        anchorId: record.anchorId,
+        time: record.time,
+        toolLabel: record.toolLabel,
+      });
+      if (record.time >= current.latestTime) {
+        current.latestTime = record.time;
+        current.latestAnchorId = record.anchorId;
+        current.toolLabel = record.toolLabel;
+      }
+      continue;
+    }
+
+    grouped.set(record.path, {
+      path: record.path,
+      count: 1,
+      latestTime: record.time,
+      latestAnchorId: record.anchorId,
+      toolLabel: record.toolLabel,
+      anchors: [{ anchorId: record.anchorId, time: record.time, toolLabel: record.toolLabel }],
+    });
+  }
+
+  return [...grouped.values()]
+    .map((item) => ({
+      ...item,
+      anchors: item.anchors.toSorted((a, b) => a.time - b.time),
+    }))
+    .toSorted((a, b) => {
+      if (b.latestTime !== a.latestTime) return b.latestTime - a.latestTime;
+      return a.path.localeCompare(b.path);
+    });
+}
+
+function buildFileChangeSummary(messages: Message[]): {
+  toolAnchorIds: Map<MessagePart, string>;
+  summary: FileChangeSummary;
+} {
+  const toolAnchorIds = new Map<MessagePart, string>();
+  const fileChanges: Record<FileChangeKind, FileChangeRecord[]> = {
+    read: [],
+    edit: [],
+    write: [],
+    delete: [],
+  };
+
+  messages.forEach((message, messageIndex) => {
+    let toolIndex = 0;
+
+    for (const part of message.parts) {
+      if (part.type !== "tool") continue;
+
+      const anchorId = buildToolAnchorId(messageIndex, toolIndex);
+      toolIndex += 1;
+      toolAnchorIds.set(part, anchorId);
+
+      const inputValue = getToolInputValue(part);
+      const toolLabel = normalizeToolLabel(part);
+      const time = part.time_created ?? message.time_created;
+
+      const patchEntries = getCodexPatchEntries(inputValue);
+      if (patchEntries.length > 0) {
+        for (const entry of patchEntries) {
+          const path = (entry.path || entry.oldPath).trim();
+          if (!path) continue;
+
+          const kind =
+            entry.type === "write_file"
+              ? "write"
+              : entry.type === "delete_file"
+                ? "delete"
+                : "edit";
+          fileChanges[kind].push({ kind, path, anchorId, time, toolLabel });
+        }
+        continue;
+      }
+
+      const kind = classifyToolKind(part);
+      if (!kind) continue;
+
+      const paths = extractPathsFromToolInput(inputValue);
+      for (const path of paths) {
+        fileChanges[kind].push({ kind, path, anchorId, time, toolLabel });
+      }
+    }
+  });
+
+  return {
+    toolAnchorIds,
+    summary: {
+      read: summarizeFileChangeItems(fileChanges.read),
+      edit: summarizeFileChangeItems(fileChanges.edit),
+      write: summarizeFileChangeItems(fileChanges.write),
+      delete: summarizeFileChangeItems(fileChanges.delete),
+    },
+  };
+}
+
+function formatTrackedPath(path: string, baseDirectory: string) {
+  if (path.startsWith(`${baseDirectory}/`)) {
+    return path.slice(baseDirectory.length + 1);
+  }
+  return path;
+}
+
+function scrollToToolAnchor(anchorId: string) {
+  if (typeof document === "undefined") return;
+  const element = document.getElementById(anchorId);
+  if (!element) return;
+  element.scrollIntoView({ behavior: "smooth", block: "center" });
 }
 
 function parseJsonText<T>(value: string): T | null {
@@ -1197,6 +1455,10 @@ export function SessionDetail({ session, highlightQuery }: SessionDetailProps) {
     () => normalizedMessages.filter((msg) => hasVisibleContent(msg)),
     [normalizedMessages],
   );
+  const { toolAnchorIds, summary: fileChangeSummary } = useMemo(
+    () => buildFileChangeSummary(visibleMessages),
+    [visibleMessages],
+  );
   const toc = useMemo(() => buildSessionDetailToc(visibleMessages), [visibleMessages]);
   const [selectedFilters, setSelectedFilters] = useState<Set<string>>(() => new Set(toc.filterIds));
   const tocSignature = useMemo(() => [...toc.filterIds].toSorted().join("|"), [toc.filterIds]);
@@ -1225,6 +1487,8 @@ export function SessionDetail({ session, highlightQuery }: SessionDetailProps) {
       <div className="grid gap-6 lg:grid-cols-[240px_minmax(0,1fr)] lg:items-start">
         <SessionToc
           toc={toc}
+          fileChangeSummary={fileChangeSummary}
+          baseDirectory={session.directory}
           selectedFilters={selectedFilters}
           onToggle={(filterId) =>
             setSelectedFilters((current) => {
@@ -1245,6 +1509,7 @@ export function SessionDetail({ session, highlightQuery }: SessionDetailProps) {
                 key={index}
                 msg={msg}
                 blocks={blocks}
+                toolAnchorIds={toolAnchorIds}
                 formatTokens={formatTokens}
                 sessionAgentKey={sessionAgentKey}
                 highlightQuery={highlightQuery}
@@ -1275,10 +1540,14 @@ const TOC_META: Array<{ id: TocFilterId; label: string }> = [
 
 function SessionToc({
   toc,
+  fileChangeSummary,
+  baseDirectory,
   selectedFilters,
   onToggle,
 }: {
   toc: SessionDetailToc;
+  fileChangeSummary: FileChangeSummary;
+  baseDirectory: string;
   selectedFilters: Set<string>;
   onToggle: (filterId: string) => void;
 }) {
@@ -1286,65 +1555,224 @@ function SessionToc({
 
   return (
     <aside className="lg:sticky lg:top-4">
-      <div className="rounded-sm border border-[var(--console-border)] bg-white shadow-[0_1px_2px_rgba(15,23,42,0.04)]">
-        <div className="flex items-center gap-2 border-b border-[var(--console-border)] px-4 py-3">
-          <Funnel className="size-3.5 text-[var(--console-accent)]" />
-          <span className="console-mono text-xs font-semibold uppercase tracking-[0.16em] text-[var(--console-text)]">
-            Session TOC
-          </span>
+      <div className="space-y-4">
+        <div className="rounded-sm border border-[var(--console-border)] bg-white shadow-[0_1px_2px_rgba(15,23,42,0.04)]">
+          <div className="flex items-center gap-2 border-b border-[var(--console-border)] px-4 py-3">
+            <Funnel className="size-3.5 text-[var(--console-accent)]" />
+            <span className="console-mono text-xs font-semibold uppercase tracking-[0.16em] text-[var(--console-text)]">
+              Session TOC
+            </span>
+          </div>
+          <div className="space-y-1 p-3">
+            {TOC_META.filter(({ id }) => toc.counts[id] > 0).map(({ id, label }) => (
+              <label
+                key={id}
+                className="flex cursor-pointer items-center gap-3 rounded-sm px-2 py-2 transition-colors hover:bg-[var(--console-surface-muted)]"
+              >
+                <input
+                  type="checkbox"
+                  checked={selectedFilters.has(id)}
+                  onChange={() => onToggle(id)}
+                  className="size-3.5 rounded border-[var(--console-border-strong)] accent-[var(--console-accent-strong)]"
+                />
+                <span className="console-mono min-w-0 flex-1 text-xs text-[var(--console-text)]">
+                  {label}
+                </span>
+                <span className="console-mono text-[11px] text-[var(--console-muted)]">
+                  {toc.counts[id]}
+                </span>
+              </label>
+            ))}
+            {toc.tools.length > 0 ? (
+              <div className="space-y-1 border-t border-[var(--console-border)] pt-2">
+                {toc.tools.map((tool) => (
+                  <label
+                    key={tool.id}
+                    className={cn(
+                      "flex items-center gap-3 rounded-sm px-2 py-2 transition-colors",
+                      toolsEnabled
+                        ? "cursor-pointer hover:bg-[var(--console-surface-muted)]"
+                        : "cursor-not-allowed opacity-50",
+                    )}
+                  >
+                    <input
+                      type="checkbox"
+                      checked={toolsEnabled && selectedFilters.has(tool.id)}
+                      disabled={!toolsEnabled}
+                      onChange={() => onToggle(tool.id)}
+                      className="size-3.5 rounded border-[var(--console-border-strong)] accent-[var(--console-accent-strong)]"
+                    />
+                    <span className="console-mono min-w-0 flex-1 text-xs text-[var(--console-muted)]">
+                      {tool.label}
+                    </span>
+                    <span className="console-mono text-[11px] text-[var(--console-muted)]">
+                      {tool.count}
+                    </span>
+                  </label>
+                ))}
+              </div>
+            ) : null}
+          </div>
         </div>
-        <div className="space-y-1 p-3">
-          {TOC_META.filter(({ id }) => toc.counts[id] > 0).map(({ id, label }) => (
-            <label
-              key={id}
-              className="flex cursor-pointer items-center gap-3 rounded-sm px-2 py-2 transition-colors hover:bg-[var(--console-surface-muted)]"
-            >
-              <input
-                type="checkbox"
-                checked={selectedFilters.has(id)}
-                onChange={() => onToggle(id)}
-                className="size-3.5 rounded border-[var(--console-border-strong)] accent-[var(--console-accent-strong)]"
-              />
-              <span className="console-mono min-w-0 flex-1 text-xs text-[var(--console-text)]">
-                {label}
-              </span>
-              <span className="console-mono text-[11px] text-[var(--console-muted)]">
-                {toc.counts[id]}
-              </span>
-            </label>
-          ))}
-          {toc.tools.length > 0 ? (
-            <div className="space-y-1 border-t border-[var(--console-border)] pt-2">
-              {toc.tools.map((tool) => (
-                <label
-                  key={tool.id}
-                  className={cn(
-                    "flex items-center gap-3 rounded-sm px-2 py-2 transition-colors",
-                    toolsEnabled
-                      ? "cursor-pointer hover:bg-[var(--console-surface-muted)]"
-                      : "cursor-not-allowed opacity-50",
-                  )}
-                >
-                  <input
-                    type="checkbox"
-                    checked={toolsEnabled && selectedFilters.has(tool.id)}
-                    disabled={!toolsEnabled}
-                    onChange={() => onToggle(tool.id)}
-                    className="size-3.5 rounded border-[var(--console-border-strong)] accent-[var(--console-accent-strong)]"
-                  />
-                  <span className="console-mono min-w-0 flex-1 text-xs text-[var(--console-muted)]">
-                    {tool.label}
-                  </span>
-                  <span className="console-mono text-[11px] text-[var(--console-muted)]">
-                    {tool.count}
-                  </span>
-                </label>
-              ))}
-            </div>
-          ) : null}
-        </div>
+        <FileChangeTracker summary={fileChangeSummary} baseDirectory={baseDirectory} />
       </div>
     </aside>
+  );
+}
+
+function FileChangeTracker({
+  summary,
+  baseDirectory,
+}: {
+  summary: FileChangeSummary;
+  baseDirectory: string;
+}) {
+  const sections = [
+    { key: "read" as const, label: "Read", Icon: FileSearch, items: summary.read },
+    { key: "edit" as const, label: "Edit", Icon: FilePenLine, items: summary.edit },
+    { key: "write" as const, label: "Write", Icon: NotebookPen, items: summary.write },
+    { key: "delete" as const, label: "Delete", Icon: XCircle, items: summary.delete },
+  ].filter((section) => section.items.length > 0) satisfies Array<{
+    key: FileChangeKind;
+    label: string;
+    Icon: typeof LoaderCircle;
+    items: FileChangeSummaryItem[];
+  }>;
+
+  if (sections.length === 0) return null;
+
+  return (
+    <div className="rounded-sm border border-[var(--console-border)] bg-white shadow-[0_1px_2px_rgba(15,23,42,0.04)]">
+      <div className="flex items-center gap-2 border-b border-[var(--console-border)] px-4 py-3">
+        <FileText className="size-3.5 text-[var(--console-accent)]" />
+        <span className="console-mono text-xs font-semibold uppercase tracking-[0.16em] text-[var(--console-text)]">
+          File Tracker
+        </span>
+      </div>
+      <div className="space-y-3 p-3">
+        {sections.map(({ key, label, Icon, items }) => (
+          <FileTrackerSection
+            key={key}
+            label={label}
+            Icon={Icon}
+            items={items}
+            baseDirectory={baseDirectory}
+          />
+        ))}
+      </div>
+    </div>
+  );
+}
+
+function FileTrackerSection({
+  label,
+  Icon,
+  items,
+  baseDirectory,
+}: {
+  label: string;
+  Icon: typeof LoaderCircle;
+  items: FileChangeSummaryItem[];
+  baseDirectory: string;
+}) {
+  const [expanded, setExpanded] = useState(false);
+
+  return (
+    <div className="rounded-sm border border-[var(--console-border)] bg-[#fafafa]">
+      <button
+        type="button"
+        onClick={() => setExpanded((value) => !value)}
+        className="flex w-full items-center gap-2 px-3 py-2 text-left transition-colors hover:bg-[var(--console-surface-muted)]"
+      >
+        <Icon className="size-3.5 shrink-0 text-[var(--console-accent)]" />
+        <span className="console-mono min-w-0 flex-1 text-[11px] font-semibold uppercase tracking-[0.12em] text-[var(--console-muted)]">
+          {label}
+        </span>
+        <span className="console-mono shrink-0 text-[10px] text-[var(--console-muted)]">
+          {items.length}
+        </span>
+        {expanded ? (
+          <ChevronUp className="size-3.5 shrink-0 text-[var(--console-muted)]" />
+        ) : (
+          <ChevronDown className="size-3.5 shrink-0 text-[var(--console-muted)]" />
+        )}
+      </button>
+      {expanded ? (
+        <div className="space-y-1 border-t border-[var(--console-border)] p-2">
+          {items.map((item) => (
+            <FileTrackerItem key={`${item.path}:${item.latestAnchorId}`} item={item} baseDirectory={baseDirectory} />
+          ))}
+        </div>
+      ) : null}
+    </div>
+  );
+}
+
+function FileTrackerItem({
+  item,
+  baseDirectory,
+}: {
+  item: FileChangeSummaryItem;
+  baseDirectory: string;
+}) {
+  const [currentIndex, setCurrentIndex] = useState(0);
+
+  function jumpToIndex(nextIndex: number) {
+    const total = item.anchors.length;
+    if (total === 0) return;
+    const normalizedIndex = ((nextIndex % total) + total) % total;
+    setCurrentIndex(normalizedIndex);
+    const anchor = item.anchors[normalizedIndex];
+    if (anchor) {
+      scrollToToolAnchor(anchor.anchorId);
+    }
+  }
+
+  return (
+    <div className="flex items-start gap-2 rounded-sm px-2 py-2 transition-colors hover:bg-[var(--console-surface-muted)]">
+      <button
+        type="button"
+        title={item.path}
+        onClick={() => jumpToIndex(currentIndex)}
+        className="min-w-0 flex-1 text-left"
+      >
+        <span className="console-mono block break-all text-xs text-[var(--console-text)]">
+          {formatTrackedPath(item.path, baseDirectory)}
+        </span>
+      </button>
+      {item.anchors.length > 1 ? (
+        <div className="flex shrink-0 items-center gap-1">
+          <button
+            type="button"
+            aria-label={`Previous ${item.path}`}
+            onClick={() => jumpToIndex(currentIndex - 1)}
+            className="rounded-sm border border-[var(--console-border)] p-1 text-[var(--console-muted)] transition-colors hover:bg-white"
+          >
+            <ChevronUp className="size-3" />
+          </button>
+          <span className="console-mono text-[10px] text-[var(--console-muted)]">
+            {currentIndex + 1}/{item.anchors.length}
+          </span>
+          <button
+            type="button"
+            aria-label={`Next ${item.path}`}
+            onClick={() => jumpToIndex(currentIndex + 1)}
+            className="rounded-sm border border-[var(--console-border)] p-1 text-[var(--console-muted)] transition-colors hover:bg-white"
+          >
+            <ChevronDown className="size-3" />
+          </button>
+        </div>
+      ) : (
+        <button
+          type="button"
+          title="Jump to tool call"
+          onClick={() => jumpToIndex(0)}
+          className="console-mono shrink-0 text-[10px] text-[var(--console-muted)]"
+        >
+          {item.count}
+        </button>
+      )}
+    </div>
   );
 }
 
@@ -1399,12 +1827,14 @@ export function SessionSummarySection({
 function MessageItem({
   msg,
   blocks,
+  toolAnchorIds,
   formatTokens: fmtTokens,
   sessionAgentKey,
   highlightQuery,
 }: {
   msg: Message;
   blocks?: MessageBlock[];
+  toolAnchorIds: Map<MessagePart, string>;
   formatTokens: (n: number) => string;
   sessionAgentKey: string;
   highlightQuery?: string;
@@ -1486,6 +1916,7 @@ function MessageItem({
                   <ToolsSection
                     key={index}
                     parts={block.parts}
+                    toolAnchorIds={toolAnchorIds}
                     sessionAgentKey={sessionAgentKey}
                     highlightQuery={highlightQuery}
                   />
@@ -1603,10 +2034,12 @@ function ReasoningSection({
 
 function ToolsSection({
   parts,
+  toolAnchorIds,
   sessionAgentKey,
   highlightQuery,
 }: {
   parts: MessagePart[];
+  toolAnchorIds: Map<MessagePart, string>;
   sessionAgentKey: string;
   highlightQuery?: string;
 }) {
@@ -1617,6 +2050,7 @@ function ToolsSection({
           <ToolItem
             key={i}
             tool={tool}
+            anchorId={toolAnchorIds.get(tool)}
             sessionAgentKey={sessionAgentKey}
             highlightQuery={highlightQuery}
           />
@@ -1716,10 +2150,12 @@ function PlanItem({ part, highlightQuery }: { part: MessagePart; highlightQuery?
 
 function ToolItem({
   tool,
+  anchorId,
   sessionAgentKey,
   highlightQuery,
 }: {
   tool: MessagePart;
+  anchorId?: string;
   sessionAgentKey: string;
   highlightQuery?: string;
 }) {
@@ -1731,7 +2167,7 @@ function ToolItem({
   const ToolIcon = strategy.Icon;
 
   return (
-    <div className="space-y-2">
+    <div id={anchorId} className="scroll-mt-6 space-y-2">
       <div className="flex flex-wrap items-start gap-2">
         <div
           className={`w-full md:w-[560px] rounded-sm border border-[var(--console-border-strong)] bg-white px-3 py-2 text-left shadow-[2px_2px_0_0_rgba(15,23,42,0.05)] ${
