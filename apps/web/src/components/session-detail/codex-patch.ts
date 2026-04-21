@@ -4,6 +4,7 @@ export interface CodexPatchEntry {
   type: string;
   path: string;
   oldPath: string;
+  targetPath: string;
   content: string;
 }
 
@@ -33,19 +34,20 @@ export function normalizeCodexPatchEntry(entry: unknown): CodexPatchEntry | null
     type,
     path: toStringValue(record.path),
     oldPath: toStringValue(record.old_path),
-    content: toStringValue(toRecord(record.input).content),
+    targetPath: toStringValue(record.targetPath),
+    content: toStringValue(record.content) || toStringValue(toRecord(record.input).content),
   };
 }
 
 export function getCodexPatchEntries(inputValue: unknown): CodexPatchEntry[] {
-  const input = toRecord(inputValue);
-  const rawContent = input.content;
-  if (!Array.isArray(rawContent)) {
-    return [];
-  }
+  const rawContent: unknown[] = Array.isArray(inputValue)
+    ? inputValue
+    : Array.isArray(toRecord(inputValue).content)
+      ? (toRecord(inputValue).content as unknown[])
+      : [];
 
   return rawContent
-    .map((entry) => normalizeCodexPatchEntry(entry))
+    .map((entry: unknown) => normalizeCodexPatchEntry(entry))
     .filter((entry): entry is CodexPatchEntry => entry != null);
 }
 
@@ -56,6 +58,8 @@ function formatCount(count: number, singular: string, plural: string) {
 export function summarizeCodexPatchEntries(entries: CodexPatchEntry[]) {
   const writeCount = entries.filter((entry) => entry.type === "write_file").length;
   const editCount = entries.filter((entry) => entry.type === "edit_file").length;
+  const deleteCount = entries.filter((entry) => entry.type === "delete_file").length;
+  const moveCount = entries.filter((entry) => entry.type === "move_file").length;
   const parts = [];
 
   if (writeCount > 0) {
@@ -64,12 +68,18 @@ export function summarizeCodexPatchEntries(entries: CodexPatchEntry[]) {
   if (editCount > 0) {
     parts.push(formatCount(editCount, "edit", "edits"));
   }
+  if (deleteCount > 0) {
+    parts.push(formatCount(deleteCount, "delete", "deletes"));
+  }
+  if (moveCount > 0) {
+    parts.push(formatCount(moveCount, "move", "moves"));
+  }
 
   return parts.join(" · ");
 }
 
 function getSectionLabel(entry: CodexPatchEntry) {
-  return entry.path || entry.oldPath || entry.type;
+  return entry.targetPath || entry.path || entry.oldPath || entry.type;
 }
 
 function buildCodexPatchSections(
@@ -95,6 +105,33 @@ function buildCodexPatchSections(
         language: "diff",
         isCode: true,
         text: normalizeEscapedNewlines(entry.content),
+      });
+      return sections;
+    }
+
+    if (entry.type === "delete_file") {
+      sections.push({
+        label: getSectionLabel(entry),
+        operation: "edit",
+        language: "text",
+        isCode: false,
+        text: "File deleted.",
+      });
+      return sections;
+    }
+
+    if (entry.type === "move_file") {
+      sections.push({
+        label: getSectionLabel(entry),
+        operation: "edit",
+        language: "text",
+        isCode: false,
+        text:
+          entry.targetPath && entry.path
+            ? `Moved from ${entry.path} to ${entry.targetPath}`
+            : entry.oldPath
+              ? `Moved from ${entry.oldPath}`
+              : "File moved.",
       });
     }
 
