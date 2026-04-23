@@ -8,7 +8,7 @@ import { homedir } from "node:os";
 import type { SessionData, SessionHead } from "../types/index.js";
 import { openDb, type DatabaseRow } from "../utils/sqlite.js";
 
-const CACHE_VERSION = 3;
+const CACHE_VERSION = 4;
 const CACHE_TTL = 7 * 24 * 60 * 60 * 1000;
 const CACHE_FILENAME = "codesesh.db";
 const LEGACY_CACHE_FILENAME = "scan-cache.json";

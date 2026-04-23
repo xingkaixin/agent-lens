@@ -277,6 +277,20 @@ export interface DashboardDailyBucket {
   messages: number;
 }
 
+export interface DailyTokenBucket {
+  date: string;
+  input: number;
+  output: number;
+  cache_read: number;
+  cache_create: number;
+}
+
+export interface ModelDistributionEntry {
+  model: string;
+  tokens: number;
+  sessions: number;
+}
+
 export interface DashboardTotals {
   sessions: number;
   messages: number;
@@ -293,6 +307,8 @@ export interface DashboardData {
   totals: DashboardTotals;
   perAgent: DashboardAgentStat[];
   dailyActivity: DashboardDailyBucket[];
+  dailyTokenActivity: DailyTokenBucket[];
+  modelDistribution: ModelDistributionEntry[];
   recentSessions: DashboardRecentSession[];
   /** Time window covered by dailyActivity (inclusive, ms) */
   window: { from: number; to: number; days: number };
@@ -408,12 +424,16 @@ export function handleGetDashboard(
 
   // Daily activity buckets — one bucket per local day in [from, to]
   const dailyMap = new Map<string, DashboardDailyBucket>();
+  const dailyTokenMap = new Map<string, DailyTokenBucket>();
   const bucketStart = startOfLocalDay(from);
   for (let i = 0; i < days; i += 1) {
     const ts = bucketStart + i * 86400000;
     const key = toLocalDateKey(ts);
     dailyMap.set(key, { date: key, sessions: 0, messages: 0 });
+    dailyTokenMap.set(key, { date: key, input: 0, output: 0, cache_read: 0, cache_create: 0 });
   }
+
+  const modelAgg = new Map<string, { tokens: number; sessions: number }>();
 
   for (const session of windowed) {
     const key = toLocalDateKey(getSessionActivityTime(session));
@@ -422,9 +442,37 @@ export function handleGetDashboard(
       bucket.sessions += 1;
       bucket.messages += session.stats.message_count;
     }
+
+    const tokenBucket = dailyTokenMap.get(key);
+    if (tokenBucket) {
+      const cacheRead = session.stats.total_cache_read_tokens ?? 0;
+      const cacheCreate = session.stats.total_cache_create_tokens ?? 0;
+      const pureInput = session.stats.total_input_tokens - cacheRead - cacheCreate;
+      tokenBucket.input += Math.max(0, pureInput);
+      tokenBucket.output += session.stats.total_output_tokens;
+      tokenBucket.cache_read += cacheRead;
+      tokenBucket.cache_create += cacheCreate;
+    }
+
+    if (session.model_usage) {
+      for (const [model, tokens] of Object.entries(session.model_usage)) {
+        const entry = modelAgg.get(model);
+        if (entry) {
+          entry.tokens += tokens;
+          entry.sessions += 1;
+        } else {
+          modelAgg.set(model, { tokens, sessions: 1 });
+        }
+      }
+    }
   }
 
   const dailyActivity = [...dailyMap.values()];
+  const dailyTokenActivity = [...dailyTokenMap.values()];
+
+  const modelDistribution: ModelDistributionEntry[] = [...modelAgg.entries()]
+    .map(([model, { tokens, sessions: count }]) => ({ model, tokens, sessions: count }))
+    .sort((a, b) => b.tokens - a.tokens);
 
   const recentSessions: DashboardRecentSession[] = [...windowed]
     .sort((a, b) => getSessionActivityTime(b) - getSessionActivityTime(a))
@@ -444,6 +492,8 @@ export function handleGetDashboard(
     },
     perAgent,
     dailyActivity,
+    dailyTokenActivity,
+    modelDistribution,
     recentSessions,
     window: { from, to, days },
   };

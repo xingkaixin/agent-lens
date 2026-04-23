@@ -4,12 +4,16 @@ export interface SessionStats {
   total_output_tokens: number;
   total_cost: number;
   total_tokens?: number;
+  total_cache_read_tokens?: number;
+  total_cache_create_tokens?: number;
 }
 
 export interface MessageTokens {
   input?: number;
   output?: number;
   reasoning?: number;
+  cache_read?: number;
+  cache_create?: number;
 }
 
 export interface ToolPartState {
@@ -64,6 +68,7 @@ export interface SessionHead {
   time_created: number;
   time_updated?: number;
   stats: SessionStats;
+  model_usage?: Record<string, number>;
 }
 
 /** Full session data for detail view */

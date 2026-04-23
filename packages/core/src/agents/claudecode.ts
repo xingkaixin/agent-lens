@@ -141,6 +141,8 @@ export class ClaudeCodeAgent extends BaseAgent {
     let totalCost = 0;
     let totalInputTokens = 0;
     let totalOutputTokens = 0;
+    let totalCacheRead = 0;
+    let totalCacheCreate = 0;
 
     for (const record of parseJsonlLines(content)) {
       try {
@@ -157,11 +159,12 @@ export class ClaudeCodeAgent extends BaseAgent {
       }
     }
 
-    // Aggregate stats from messages
     for (const msg of messages) {
       totalCost += msg.cost ?? 0;
       totalInputTokens += msg.tokens?.input ?? 0;
       totalOutputTokens += msg.tokens?.output ?? 0;
+      totalCacheRead += msg.tokens?.cache_read ?? 0;
+      totalCacheCreate += msg.tokens?.cache_create ?? 0;
     }
 
     return {
@@ -177,6 +180,8 @@ export class ClaudeCodeAgent extends BaseAgent {
         total_input_tokens: totalInputTokens,
         total_output_tokens: totalOutputTokens,
         total_cost: totalCost,
+        total_cache_read_tokens: totalCacheRead,
+        total_cache_create_tokens: totalCacheCreate,
       },
       messages,
     };
@@ -393,6 +398,9 @@ export class ClaudeCodeAgent extends BaseAgent {
     let cwd: string | null = null;
     let totalInputTokens = 0;
     let totalOutputTokens = 0;
+    let totalCacheReadTokens = 0;
+    let totalCacheCreateTokens = 0;
+    const modelUsageMap: Record<string, number> = {};
 
     for (const line of lines) {
       try {
@@ -400,7 +408,6 @@ export class ClaudeCodeAgent extends BaseAgent {
         const ts = parseTimestampMs(data);
         if (ts > updatedAt) updatedAt = ts;
 
-        // cwd is a top-level field on user records
         if (!cwd && data["cwd"] && typeof data["cwd"] === "string") {
           cwd = data["cwd"];
         }
@@ -420,11 +427,22 @@ export class ClaudeCodeAgent extends BaseAgent {
               | Record<string, unknown>
               | undefined;
             if (usage && typeof usage === "object") {
-              totalInputTokens +=
-                ((usage["input_tokens"] as number) ?? 0) +
-                ((usage["cache_creation_input_tokens"] as number) ?? 0) +
-                ((usage["cache_read_input_tokens"] as number) ?? 0);
-              totalOutputTokens += (usage["output_tokens"] as number) ?? 0;
+              const inputTokens = (usage["input_tokens"] as number) ?? 0;
+              const cacheRead = (usage["cache_read_input_tokens"] as number) ?? 0;
+              const cacheCreate = (usage["cache_creation_input_tokens"] as number) ?? 0;
+              const outputTokens = (usage["output_tokens"] as number) ?? 0;
+
+              totalInputTokens += inputTokens + cacheRead + cacheCreate;
+              totalOutputTokens += outputTokens;
+              totalCacheReadTokens += cacheRead;
+              totalCacheCreateTokens += cacheCreate;
+
+              const m = (msg as Record<string, unknown>)["model"];
+              if (typeof m === "string" && m.trim()) {
+                const name = m.trim();
+                const msgTotal = inputTokens + cacheRead + cacheCreate + outputTokens;
+                modelUsageMap[name] = (modelUsageMap[name] ?? 0) + msgTotal;
+              }
             }
           }
         }
@@ -441,6 +459,8 @@ export class ClaudeCodeAgent extends BaseAgent {
 
     const title = resolveSessionTitle(explicitTitle, messageTitle, directoryTitle);
 
+    const hasModelUsage = Object.keys(modelUsageMap).length > 0;
+
     return {
       id: sessionId,
       slug: `claudecode/${sessionId}`,
@@ -453,7 +473,10 @@ export class ClaudeCodeAgent extends BaseAgent {
         total_input_tokens: totalInputTokens,
         total_output_tokens: totalOutputTokens,
         total_cost: 0,
+        total_cache_read_tokens: totalCacheReadTokens,
+        total_cache_create_tokens: totalCacheCreateTokens,
       },
+      model_usage: hasModelUsage ? modelUsageMap : undefined,
     };
   }
 
@@ -761,12 +784,13 @@ export class ClaudeCodeAgent extends BaseAgent {
     const usage = msg["usage"];
     if (usage && typeof usage === "object" && !message.tokens) {
       const u = usage as Record<string, unknown>;
+      const cacheRead = (u["cache_read_input_tokens"] as number) ?? 0;
+      const cacheCreate = (u["cache_creation_input_tokens"] as number) ?? 0;
       message.tokens = {
-        input:
-          ((u["input_tokens"] as number) ?? 0) +
-          ((u["cache_creation_input_tokens"] as number) ?? 0) +
-          ((u["cache_read_input_tokens"] as number) ?? 0),
+        input: ((u["input_tokens"] as number) ?? 0) + cacheCreate + cacheRead,
         output: (u["output_tokens"] as number) ?? 0,
+        cache_read: cacheRead,
+        cache_create: cacheCreate,
       };
     }
   }

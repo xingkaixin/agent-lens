@@ -405,6 +405,17 @@ export class CursorAgent extends BaseAgent {
 
           const directory = workspacePathMap.get(composerId) ?? "";
 
+          const modelUsageMap: Record<string, number> = {};
+          for (const msg of messages) {
+            if (msg.model) {
+              const msgTokens = (msg.tokens?.input ?? 0) + (msg.tokens?.output ?? 0);
+              if (msgTokens > 0) {
+                modelUsageMap[msg.model] = (modelUsageMap[msg.model] ?? 0) + msgTokens;
+              }
+            }
+          }
+          const hasModelUsage = Object.keys(modelUsageMap).length > 0;
+
           heads.push({
             id: sessionId,
             slug: `cursor/${sessionId}`,
@@ -418,6 +429,7 @@ export class CursorAgent extends BaseAgent {
               total_output_tokens: composer.outputTokenCount ?? 0,
               total_cost: 0,
             },
+            model_usage: hasModelUsage ? modelUsageMap : undefined,
           });
 
           // Cache with sessionId (requestId) as key

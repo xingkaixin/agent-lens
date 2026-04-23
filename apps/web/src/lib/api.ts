@@ -114,6 +114,20 @@ export interface DashboardDailyBucket {
   messages: number;
 }
 
+export interface DailyTokenBucket {
+  date: string;
+  input: number;
+  output: number;
+  cache_read: number;
+  cache_create: number;
+}
+
+export interface ModelDistributionEntry {
+  model: string;
+  tokens: number;
+  sessions: number;
+}
+
 export interface DashboardTotals {
   sessions: number;
   messages: number;
@@ -130,6 +144,8 @@ export interface DashboardData {
   totals: DashboardTotals;
   perAgent: DashboardAgentStat[];
   dailyActivity: DashboardDailyBucket[];
+  dailyTokenActivity: DailyTokenBucket[];
+  modelDistribution: ModelDistributionEntry[];
   recentSessions: DashboardRecentSession[];
   window: { from: number; to: number; days: number };
 }
