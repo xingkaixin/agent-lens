@@ -18,8 +18,11 @@ CodeSesh believes your session history belongs to **you** — and you deserve to
 
 - **Unified Timeline** — Browse sessions across all your AI agents in a single, searchable interface
 - **Full-Text Search** — Search across session titles and conversation content with highlighted matches
-- **Dashboard & Activity Trends** — Track daily activity, agent distribution, recent sessions, and latest activity at a glance
+- **Dashboard & Activity Trends** — Track daily activity, agent distribution, recent sessions, latest activity, token usage, and model usage at a glance
+- **Bookmarks** — Save important sessions and keep them visible from the dashboard
 - **Full Conversation Replay** — Read every message, tool call, and reasoning step exactly as it happened
+- **File Change Tracking** — Jump from the session detail table of contents to files that were read, edited, created, deleted, or moved
+- **Keyboard Navigation** — Move through views, focus search, and open shortcuts without leaving the keyboard
 - **Cost & Token Visibility** — See exactly how many tokens and dollars each session consumed
 - **SQLite-Backed Cache & Search Index** — Restore session lists quickly and reuse the same local store for search
 - **Zero Configuration** — Just run it. CodeSesh auto-discovers everything on your filesystem
@@ -53,7 +56,7 @@ More agents coming soon. Adding a new one is [a single file](#extending).
 
 ```bash
 # Clone the repo
-git clone https://github.com/your-username/codesesh.git
+git clone https://github.com/xingkaixin/codesesh.git
 cd codesesh
 
 # Install dependencies
@@ -165,12 +168,14 @@ npx codesesh -j
 
 Once CodeSesh is running, here's what you'll find:
 
-1. **Dashboard** — Start from a summary view with total sessions, total messages, total tokens, latest activity, daily activity, agent distribution, and recent sessions.
+1. **Dashboard** — Start from a summary view with total sessions, total messages, total tokens, latest activity, daily activity, agent distribution, model distribution, token trends, bookmarks, and recent sessions.
 2. **Search** — Query session titles and conversation text from the top bar, then jump into highlighted matches.
 3. **Agent Sidebar** — A panel listing all detected agents with session counts. Click any agent to filter the view.
 4. **Session List** — Browse your sessions sorted by most recent. Each card shows the session title, working directory, message count, and total cost at a glance.
-5. **Session Detail** — Click any session to open a full replay. You'll see every user message, assistant response, tool invocation, and reasoning step exactly as it unfolded.
-6. **Live Updates** — New or changed local sessions are reflected automatically while the server is running.
+5. **Bookmarks** — Pin sessions you want to revisit and manage them from the dashboard or session views.
+6. **Session Detail** — Click any session to open a full replay. You'll see every user message, assistant response, tool invocation, reasoning step, model label, and tracked file change exactly as it unfolded.
+7. **Keyboard Shortcuts** — Use the shortcuts panel to navigate sessions, focus search, and move between grouped content faster.
+8. **Live Updates** — New or changed local sessions are reflected automatically while the server is running.
 
 ---
 

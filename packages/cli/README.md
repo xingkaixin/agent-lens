@@ -20,9 +20,12 @@ Your browser will open at `http://localhost:4321` with all your sessions ready t
 
 - **Unified Timeline** — Browse sessions across all your AI agents in a single, searchable interface
 - **Full-Text Search** — Search across session titles and conversation content with highlighted matches
-- **Dashboard & Activity Trends** — See totals, daily activity, agent distribution, and recent sessions
+- **Dashboard & Activity Trends** — See totals, daily activity, agent distribution, model usage, token trends, bookmarks, and recent sessions
+- **Bookmarks** — Save important sessions and keep them visible from the dashboard
 - **Full Conversation Replay** — Read every message, tool call, and reasoning step exactly as it happened
-- **Cost & Token Visibility** — See exactly how many tokens and dollars each session consumed
+- **File Change Tracking** — Jump to files that were read, edited, created, deleted, or moved
+- **Keyboard Navigation** — Move through views, focus search, and open shortcuts without leaving the keyboard
+- **Cost & Token Visibility** — See token totals, cache tokens, model usage, and session cost
 - **SQLite-Backed Cache & Search Index** — Restore session lists quickly and reuse the same local store for search
 - **Zero Configuration** — Just run it. CodeSesh auto-discovers everything on your filesystem
 - **100% Local & Private** — Nothing leaves your machine. No accounts, no cloud sync, no telemetry

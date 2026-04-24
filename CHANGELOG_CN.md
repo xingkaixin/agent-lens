@@ -1,5 +1,15 @@
 # Changelog
 
+## [0.4.0] - 2026-04-24
+
+- feat(bookmarks): 增加基于 SQLite 持久化的会话收藏，并提供 API 路由与 Web UI 操作
+- feat(web): 会话详情目录增加文件变更追踪，支持快速定位读写、编辑、删除等文件操作
+- feat(web): Codex patch 查看器支持删除和移动文件操作展示
+- feat(web): 增加键盘导航和快捷键面板
+- feat(web): Dashboard 增加 Token 与模型分析，并展示 Claude 缓存 Token 指标
+- feat(www): 产品落地页增加截图导览、跑马灯展示和可放大预览
+- feat(ci): CI 中统一换行符为 LF
+
 ## [0.3.0] - 2026-04-21
 
 - feat(core): 会话缓存从 JSON 文件迁移到统一的 SQLite 数据库

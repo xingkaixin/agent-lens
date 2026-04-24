@@ -15,6 +15,9 @@ import {
   ChevronLeft,
   ChevronRight,
   Expand,
+  Bookmark,
+  ListTree,
+  Keyboard,
   type LucideIcon,
 } from "lucide-react";
 
@@ -332,7 +335,12 @@ const features: FeatureItem[] = [
   {
     icon: BarChart3,
     title: "Dashboard & Activity Trends",
-    description: "Track daily activity, agent distribution, recent sessions, and latest activity.",
+    description: "Track activity, tokens, models, bookmarks, and recent sessions at a glance.",
+  },
+  {
+    icon: Bookmark,
+    title: "Session Bookmarks",
+    description: "Save important sessions and revisit them from the dashboard.",
   },
   {
     icon: Search,
@@ -350,6 +358,16 @@ const features: FeatureItem[] = [
     description: "Read every message, tool call, and reasoning step exactly as it happened.",
   },
   {
+    icon: ListTree,
+    title: "File Change Tracking",
+    description: "Jump to files that were read, edited, created, deleted, or moved.",
+  },
+  {
+    icon: Keyboard,
+    title: "Keyboard Navigation",
+    description: "Navigate views, focus search, and move through groups from the keyboard.",
+  },
+  {
     icon: Timer,
     title: "Live Refresh",
     description: "File changes are picked up automatically, and the UI stays in sync.",
@@ -357,7 +375,7 @@ const features: FeatureItem[] = [
   {
     icon: BarChart3,
     title: "Cost & Token Visibility",
-    description: "See exactly how many tokens and dollars each session consumed.",
+    description: "See token totals, cache tokens, model usage, and session cost.",
   },
   {
     icon: Database,

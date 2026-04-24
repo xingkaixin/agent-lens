@@ -1,5 +1,15 @@
 # Changelog
 
+## [0.4.0] - 2026-04-24
+
+- feat(bookmarks): add SQLite-backed session bookmarking with API routes and Web UI controls
+- feat(web): add file change tracking to the session detail table of contents
+- feat(web): support delete and move operations in the Codex patch viewer
+- feat(web): add keyboard navigation and a shortcuts panel
+- feat(web): add token and model analytics to the dashboard, including Claude cache token metrics
+- feat(www): add a product tour section with marquee screenshots and an expandable lightbox
+- feat(ci): normalize line endings to LF in CI
+
 ## [0.3.0] - 2026-04-21
 
 - feat(core): migrate session cache from JSON files to a unified SQLite database
