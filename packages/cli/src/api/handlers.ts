@@ -81,6 +81,49 @@ function parseDateParam(
   return Number.isNaN(ts) ? fallback : ts;
 }
 
+function parseDaysParam(value: string | undefined): number | undefined {
+  if (value == null) return undefined;
+  if (value === "") return undefined;
+  const n = parseInt(value, 10);
+  if (!Number.isFinite(n)) return undefined;
+  // days=0 explicitly opts into "all time"
+  return n;
+}
+
+/**
+ * Resolve a session-list time window from optional query params + CLI defaults.
+ * Priority: explicit query > CLI defaults > undefined (no window).
+ * `days` is converted to a `from` timestamp (now - days * 86400000) when no
+ * explicit `from` is provided; `days=0` means "all time" and clears the window.
+ */
+function resolveListWindow(
+  defaults: SessionListDefaults,
+  queryDays: string | undefined,
+  queryFrom: string | undefined,
+  queryTo: string | undefined,
+): { from: number | undefined; to: number | undefined } {
+  const explicitDays = parseDaysParam(queryDays);
+  const explicitFrom = parseDateParam(queryFrom, undefined);
+  const explicitTo = parseDateParam(queryTo, undefined);
+
+  let from: number | undefined;
+  let to: number | undefined = explicitTo ?? defaults.to;
+
+  if (explicitFrom != null) {
+    from = explicitFrom;
+  } else if (explicitDays != null) {
+    from = explicitDays > 0 ? Date.now() - explicitDays * 86400000 : undefined;
+    if (explicitDays === 0) {
+      // "all time" — also clear any default `to` so the window is fully open
+      to = explicitTo;
+    }
+  } else {
+    from = defaults.from;
+  }
+
+  return { from, to };
+}
+
 function filterSessionsByWindow(
   sessions: SessionHead[],
   from: number | undefined,
@@ -119,7 +162,12 @@ export function handleGetAgents(
   defaults: SessionListDefaults = {},
 ) {
   const scanResult = scanSource.getSnapshot();
-  const { from, to } = defaults;
+  const { from, to } = resolveListWindow(
+    defaults,
+    c.req.query("days"),
+    c.req.query("from"),
+    c.req.query("to"),
+  );
   const counts = Object.fromEntries(
     Object.entries(scanResult.byAgent).map(([agentName, sessions]) => [
       agentName,
@@ -139,8 +187,12 @@ export function handleGetSessions(
   const agent = c.req.query("agent");
   const q = c.req.query("q")?.toLowerCase();
   const cwd = c.req.query("cwd")?.toLowerCase();
-  const from = parseDateParam(c.req.query("from"), defaults.from);
-  const to = parseDateParam(c.req.query("to"), defaults.to);
+  const { from, to } = resolveListWindow(
+    defaults,
+    c.req.query("days"),
+    c.req.query("from"),
+    c.req.query("to"),
+  );
 
   let sessions: SessionHead[] = [];
 
@@ -176,8 +228,12 @@ export function handleSearchSessions(
   const scanResult = scanSource.getSnapshot();
   const agent = c.req.query("agent");
   const cwd = c.req.query("cwd");
-  const from = parseDateParam(c.req.query("from"), defaults.from);
-  const to = parseDateParam(c.req.query("to"), defaults.to);
+  const { from, to } = resolveListWindow(
+    defaults,
+    c.req.query("days"),
+    c.req.query("from"),
+    c.req.query("to"),
+  );
 
   for (const indexedAgent of scanResult.agents) {
     const sessions = scanResult.byAgent[indexedAgent.name] ?? [];

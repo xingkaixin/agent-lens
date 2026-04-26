@@ -43,6 +43,8 @@ import {
   mergeBookmarksWithSessions,
   toBookmarkedSessionSnapshot,
 } from "./lib/bookmarks";
+import { rangeFromAppConfig, useTimeRange } from "./lib/useTimeRange";
+import { TimeRangeMenu } from "./components/TimeRangeMenu";
 
 type ViewState =
   | { mode: "root"; activeAgentKey: null; activeSessionSlug: null }
@@ -103,24 +105,6 @@ function parseViewState(pathname: string, validAgentKeys: Set<string>): ViewStat
     };
   }
   return { mode: "invalidRoute", activeAgentKey: null, activeSessionSlug: null };
-}
-
-function formatIsoDate(ts: number): string {
-  const d = new Date(ts);
-  const y = d.getFullYear();
-  const m = String(d.getMonth() + 1).padStart(2, "0");
-  const day = String(d.getDate()).padStart(2, "0");
-  return `${y}-${m}-${day}`;
-}
-
-function formatWindowLabel(config: AppConfig | null): string | null {
-  if (!config) return null;
-  const { from, to, days } = config.window;
-  if (from == null) return "All time";
-  const fromStr = formatIsoDate(from);
-  const toStr = formatIsoDate(to ?? Date.now());
-  if (days) return `Last ${days}d · ${fromStr} → ${toStr}`;
-  return `${fromStr} → ${toStr}`;
 }
 
 function formatRelativeTime(timestamp?: number) {
@@ -222,35 +206,62 @@ export default function App() {
   const sidebarItemRefs = useRef(new Map<string, HTMLAnchorElement>());
   const searchResultRefs = useRef(new Map<string, HTMLAnchorElement>());
 
-  // Load config + agents + sessions + dashboard (all share the same app-level window)
+  // Load config + bookmarks once on mount (data fetches that depend on the
+  // active time range live in a separate effect below).
   useEffect(() => {
-    const ac = new AbortController();
+    let cancelled = false;
     (async () => {
       try {
-        const config = await fetchConfig();
+        const [config, bookmarkData] = await Promise.all([fetchConfig(), fetchBookmarks()]);
+        if (cancelled) return;
         setAppConfig(config);
-        const [agentList, sessionList, dashboardData, bookmarkData] = await Promise.all([
-          fetchAgents(),
-          fetchSessions(),
-          fetchDashboard(config.window.days).catch((err) => {
+        setBookmarks(bookmarkData.bookmarks);
+      } catch (err) {
+        console.error("Failed to load config:", err);
+        if (!cancelled) setError("Failed to load data. Is the CLI server running?");
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  const cliFallbackRange = useMemo(() => rangeFromAppConfig(appConfig), [appConfig]);
+  const { range: timeRange, fromUrl: timeRangeFromUrl, setRange: setTimeRange } =
+    useTimeRange(cliFallbackRange);
+
+  // Load agents/sessions/dashboard whenever the active time range changes.
+  // Skipped until config has loaded so the first fetch always carries the
+  // resolved range (CLI fallback or URL state) rather than the bare default.
+  useEffect(() => {
+    if (!appConfig) return;
+    let cancelled = false;
+    (async () => {
+      try {
+        const [agentList, sessionList, dashboardData] = await Promise.all([
+          fetchAgents(timeRange ?? undefined),
+          fetchSessions(timeRange ?? undefined),
+          fetchDashboard(timeRange ?? undefined).catch((err) => {
             console.error("Failed to load dashboard:", err);
             return null;
           }),
-          fetchBookmarks(),
         ]);
+        if (cancelled) return;
         setAgents(agentList);
         setSessions(sessionList.sessions);
-        setBookmarks(bookmarkData.bookmarks);
         if (dashboardData) setDashboard(dashboardData);
+        setError(null);
       } catch (err) {
         console.error("Failed to load data:", err);
-        setError("Failed to load data. Is the CLI server running?");
+        if (!cancelled) setError("Failed to load data. Is the CLI server running?");
       } finally {
-        setLoading(false);
+        if (!cancelled) setLoading(false);
       }
     })();
-    return () => ac.abort();
-  }, []);
+    return () => {
+      cancelled = true;
+    };
+  }, [appConfig, timeRange]);
 
   const location = useLocation();
   const validAgentKeys = useMemo(() => new Set(agents.map((a) => a.name.toLowerCase())), [agents]);
@@ -457,15 +468,16 @@ export default function App() {
 
   const syncLiveUpdate = useEffectEvent(async (event: SessionsUpdatedEvent) => {
     try {
+      const activeRange = timeRange ?? undefined;
       const [agentList, sessionList, dashboardData, searchData] = await Promise.all([
-        fetchAgents(),
-        fetchSessions(),
-        fetchDashboard(appConfig?.window.days).catch((err) => {
+        fetchAgents(activeRange),
+        fetchSessions(activeRange),
+        fetchDashboard(activeRange).catch((err) => {
           console.error("Failed to refresh dashboard:", err);
           return null;
         }),
         activeSearchQuery
-          ? fetchSearchResults(activeSearchQuery).catch((err) => {
+          ? fetchSearchResults(activeSearchQuery, activeRange).catch((err) => {
               console.error("Failed to refresh search results:", err);
               return { results: [] };
             })
@@ -510,7 +522,7 @@ export default function App() {
     let cancelled = false;
     setSearchLoading(true);
 
-    void fetchSearchResults(activeSearchQuery)
+    void fetchSearchResults(activeSearchQuery, timeRange ?? undefined)
       .then((data) => {
         if (cancelled) return;
         setSearchResults(data.results);
@@ -528,7 +540,7 @@ export default function App() {
     return () => {
       cancelled = true;
     };
-  }, [activeSearchQuery]);
+  }, [activeSearchQuery, timeRange]);
 
   // Load session detail
   useEffect(() => {
@@ -1108,14 +1120,11 @@ export default function App() {
             >
               ? Shortcuts
             </button>
-            {formatWindowLabel(appConfig) ? (
-              <span
-                className="console-mono rounded-sm border border-[var(--console-border)] bg-white px-2 py-1 text-xs text-[var(--console-text)]"
-                title="Time window applied to agent counts, dashboard, and session list"
-              >
-                {formatWindowLabel(appConfig)}
-              </span>
-            ) : null}
+            <TimeRangeMenu
+              range={timeRange}
+              onChange={setTimeRange}
+              isFallback={!timeRangeFromUrl}
+            />
             <span className="console-mono rounded-sm border border-[var(--console-border)] bg-[var(--console-surface-muted)] px-2 py-1 text-xs text-[var(--console-muted)]">
               v{__APP_VERSION__}
             </span>

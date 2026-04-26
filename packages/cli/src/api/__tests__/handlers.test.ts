@@ -227,6 +227,50 @@ describe("handleGetSessions", () => {
     // Invalid date → filter not applied
     expect(response.sessions).toHaveLength(2);
   });
+
+  it("filters by days query param", () => {
+    const now = Date.now();
+    const c = makeMockContext({ query: { days: "3" } });
+    handleGetSessions(
+      c,
+      makeScanSource({
+        sessions: [
+          makeSession("old", {
+            time_created: now - 30 * 86400000,
+            time_updated: now - 30 * 86400000,
+          }),
+          makeSession("recent", {
+            time_created: now - 30 * 86400000,
+            time_updated: now - 1 * 86400000,
+          }),
+        ],
+        byAgent: {},
+      }),
+    );
+    const response = c.json.mock.calls[0]![0];
+    expect(response.sessions).toHaveLength(1);
+    expect(response.sessions[0].id).toBe("recent");
+  });
+
+  it("days=0 query overrides default window (all time)", () => {
+    const now = Date.now();
+    const c = makeMockContext({ query: { days: "0" } });
+    const sessions = [
+      makeSession("old", {
+        time_created: now - 30 * 86400000,
+        time_updated: now - 30 * 86400000,
+      }),
+      makeSession("recent", {
+        time_created: now - 30 * 86400000,
+        time_updated: now - 1 * 86400000,
+      }),
+    ];
+    handleGetSessions(c, makeScanSource({ sessions, byAgent: {} }), {
+      from: now - 7 * 86400000,
+    });
+    const response = c.json.mock.calls[0]![0];
+    expect(response.sessions).toHaveLength(2);
+  });
 });
 
 describe("handleGetDashboard", () => {
