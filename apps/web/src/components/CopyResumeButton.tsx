@@ -12,11 +12,12 @@ function shellQuote(value: string): string {
 }
 
 function buildCommand(sessionId: string, directory?: string | null): string {
+  const quotedId = shellQuote(sessionId);
   const trimmed = directory?.trim();
   if (!trimmed) {
-    return `claude --resume ${sessionId}`;
+    return `claude --resume ${quotedId}`;
   }
-  return `cd ${shellQuote(trimmed)} && claude --resume ${sessionId}`;
+  return `cd ${shellQuote(trimmed)} && claude --resume ${quotedId}`;
 }
 
 async function writeToClipboard(text: string): Promise<boolean> {
