@@ -1080,7 +1080,7 @@ export default function App() {
 
   return (
     <div className="console-ui h-screen overflow-hidden bg-[var(--console-bg)] text-[var(--console-text)]">
-      <header className="h-14 shrink-0 border-b border-[var(--console-border)] bg-white/85 backdrop-blur-sm">
+      <header className="relative z-30 h-14 shrink-0 border-b border-[var(--console-border)] bg-white/85 backdrop-blur-sm">
         <div className="grid h-full grid-cols-[auto_1fr_auto] items-center gap-4 px-4">
           <Link to="/" className="flex items-center gap-2 text-[var(--console-text)]">
             <img src="/logo.svg?v=3" alt="CodeSesh" className="h-6 w-6 rounded-sm" />
