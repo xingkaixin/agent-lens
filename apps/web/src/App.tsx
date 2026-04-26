@@ -191,6 +191,9 @@ export default function App() {
   const [sessionLoading, setSessionLoading] = useState(false);
   const [sessionError, setSessionError] = useState<string | null>(null);
   const [liveNotice, setLiveNotice] = useState<string | null>(null);
+  const [displayedLiveNotice, setDisplayedLiveNotice] = useState<string | null>(null);
+  const [liveNoticeVisible, setLiveNoticeVisible] = useState(false);
+  const lastLiveNoticeRef = useRef<{ text: string; at: number } | null>(null);
   const [dashboard, setDashboard] = useState<DashboardData | null>(null);
   const [appConfig, setAppConfig] = useState<AppConfig | null>(null);
   const [draftSearchQuery, setDraftSearchQuery] = useState("");
@@ -505,10 +508,19 @@ export default function App() {
         }
       }
 
-      if (event.newSessions > 0) {
-        setLiveNotice(`发现 ${event.newSessions} 个新会话，列表已自动刷新`);
-      } else if (event.updatedSessions > 0) {
-        setLiveNotice("会话内容已同步");
+      const proposedNotice =
+        event.newSessions > 0
+          ? `发现 ${event.newSessions} 个新会话，列表已自动刷新`
+          : event.updatedSessions > 0
+            ? "会话内容已同步"
+            : null;
+      if (proposedNotice) {
+        const now = Date.now();
+        const last = lastLiveNoticeRef.current;
+        if (!last || last.text !== proposedNotice || now - last.at >= 8000) {
+          lastLiveNoticeRef.current = { text: proposedNotice, at: now };
+          setLiveNotice(proposedNotice);
+        }
       }
     } catch (err) {
       console.error("Failed to sync live session update:", err);
@@ -589,6 +601,17 @@ export default function App() {
     return () => {
       window.clearTimeout(timer);
     };
+  }, [liveNotice]);
+
+  useEffect(() => {
+    if (liveNotice) {
+      setDisplayedLiveNotice(liveNotice);
+      setLiveNoticeVisible(true);
+      return;
+    }
+    setLiveNoticeVisible(false);
+    const t = window.setTimeout(() => setDisplayedLiveNotice(null), 200);
+    return () => window.clearTimeout(t);
   }, [liveNotice]);
 
   useEffect(() => {
@@ -1396,11 +1419,6 @@ export default function App() {
                   </span>
                 ) : null}
               </div>
-              {liveNotice ? (
-                <p className="console-mono mt-2 inline-flex rounded-sm border border-[var(--console-border)] bg-[var(--console-surface-muted)] px-2 py-1 text-[11px] text-[var(--console-text)]">
-                  {liveNotice}
-                </p>
-              ) : null}
             </div>
           </section>
 
@@ -1464,6 +1482,20 @@ export default function App() {
               ))}
             </div>
           </div>
+        </div>
+      ) : null}
+      {displayedLiveNotice ? (
+        <div
+          aria-live="polite"
+          aria-atomic="true"
+          data-testid="live-notice-toast"
+          className={`pointer-events-none fixed right-4 bottom-4 z-40 transition-opacity duration-200 ${
+            liveNoticeVisible ? "opacity-100" : "opacity-0"
+          }`}
+        >
+          <p className="console-mono inline-flex rounded-sm border border-[var(--console-border)] bg-[var(--console-surface-muted)] px-3 py-2 text-[11px] text-[var(--console-text)] shadow-sm">
+            {displayedLiveNotice}
+          </p>
         </div>
       ) : null}
     </div>
