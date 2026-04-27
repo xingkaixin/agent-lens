@@ -36,6 +36,7 @@ import {
 import { Dashboard } from "./components/Dashboard";
 import { ErrorBoundary } from "./components/ErrorBoundary";
 import { BookmarkButton } from "./components/BookmarkButton";
+import { SessionTreeSidebar } from "./components/SessionTreeSidebar";
 import {
   clearLegacyBookmarks,
   getSessionBookmarkKey,
@@ -152,11 +153,6 @@ interface BreadcrumbItem {
   to?: string;
 }
 
-interface SidebarSessionEntry {
-  session: SessionHead;
-  groupKey: string;
-}
-
 const SHORTCUT_HINT_STORAGE_KEY = "codesesh.shortcuts-hint-dismissed";
 
 const SHORTCUT_GROUPS = [
@@ -178,7 +174,7 @@ const SHORTCUT_GROUPS = [
   {
     title: "Groups",
     items: [
-      { keys: "h / l", description: "Collapse or expand the selected session group" },
+      { keys: "g / G", description: "Jump to the first or last session" },
       { keys: "?", description: "Open this shortcuts panel" },
     ],
   },
@@ -219,7 +215,6 @@ export default function App() {
   const [shortcutHintDismissed, setShortcutHintDismissed] = useState(true);
 
   const searchInputRef = useRef<HTMLInputElement | null>(null);
-  const sidebarItemRefs = useRef(new Map<string, HTMLAnchorElement>());
   const searchResultRefs = useRef(new Map<string, HTMLAnchorElement>());
 
   // Load config + agents + sessions + dashboard (all share the same app-level window)
@@ -404,51 +399,6 @@ export default function App() {
     [bookmarks],
   );
 
-  // Group sidebar sessions by last cwd component (file-tree style)
-  type SessionGroup = { key: string; label: string; sessions: typeof sidebarSessions };
-  const sidebarGroups = useMemo<SessionGroup[]>(() => {
-    const map = new Map<string, SessionGroup>();
-    for (const s of sidebarSessions) {
-      const dir = s.directory ?? "";
-      const label = dir ? (dir.replace(/\/+$/, "").split("/").at(-1) ?? dir) : "(unknown)";
-      const groupKey = label !== "(unknown)" ? label : "__unknown__";
-      if (!map.has(groupKey)) map.set(groupKey, { key: groupKey, label, sessions: [] });
-      map.get(groupKey)!.sessions.push(s);
-    }
-    // Sort groups by most recent session time descending; unknown always last
-    return [...map.values()].sort((a, b) => {
-      if (a.key === "__unknown__") return 1;
-      if (b.key === "__unknown__") return -1;
-      const aTime = Math.max(...a.sessions.map((s) => s.time_updated ?? s.time_created));
-      const bTime = Math.max(...b.sessions.map((s) => s.time_updated ?? s.time_created));
-      return bTime - aTime;
-    });
-  }, [sidebarSessions]);
-
-  // Default: all groups collapsed; track which are expanded
-  const [expandedGroups, setExpandedGroups] = useState<Set<string>>(new Set());
-  // Reset to all-collapsed when agent changes
-  useEffect(() => {
-    setExpandedGroups(new Set());
-  }, [activeAgentKey]);
-
-  function toggleGroup(key: string) {
-    setExpandedGroups((prev) => {
-      const next = new Set(prev);
-      if (next.has(key)) next.delete(key);
-      else next.add(key);
-      return next;
-    });
-  }
-
-  const visibleSidebarSessions = useMemo<SidebarSessionEntry[]>(() => {
-    return sidebarGroups.flatMap((group) =>
-      expandedGroups.has(group.key)
-        ? group.sessions.map((session) => ({ session, groupKey: group.key }))
-        : [],
-    );
-  }, [expandedGroups, sidebarGroups]);
-
   // Stable key for session fetch
   const sessionFetchKey =
     viewState.mode === "session"
@@ -599,9 +549,7 @@ export default function App() {
     }
 
     if (viewState.mode === "agent") {
-      setSelectedSidebarSessionId(
-        (current) => current ?? visibleSidebarSessions[0]?.session.id ?? null,
-      );
+      setSelectedSidebarSessionId((current) => current ?? sidebarSessions[0]?.id ?? null);
       return;
     }
 
@@ -611,28 +559,8 @@ export default function App() {
     searchResults.length,
     viewState.mode,
     viewState.activeSessionSlug,
-    visibleSidebarSessions,
+    sidebarSessions,
   ]);
-
-  useEffect(() => {
-    if (viewState.mode !== "session") return;
-    const containingGroup = sidebarGroups.find((group) =>
-      group.sessions.some((session) => session.id === viewState.activeSessionSlug),
-    );
-    if (!containingGroup) return;
-    setExpandedGroups((prev) => {
-      if (prev.has(containingGroup.key)) return prev;
-      const next = new Set(prev);
-      next.add(containingGroup.key);
-      return next;
-    });
-  }, [sidebarGroups, viewState.activeSessionSlug, viewState.mode]);
-
-  useEffect(() => {
-    if (!selectedSidebarSessionId) return;
-    const node = sidebarItemRefs.current.get(selectedSidebarSessionId);
-    node?.scrollIntoView({ block: "nearest" });
-  }, [selectedSidebarSessionId]);
 
   useEffect(() => {
     if (!isSearchMode) return;
@@ -954,36 +882,17 @@ export default function App() {
       return;
     }
 
-    if (!activeAgentKey || sidebarGroups.length === 0) return;
-
-    const selectGroupBoundary = (direction: "start" | "end") => {
-      const group = direction === "start" ? sidebarGroups[0] : sidebarGroups.at(-1);
-      if (!group) return;
-      setExpandedGroups((prev) => {
-        const next = new Set(prev);
-        next.add(group.key);
-        return next;
-      });
-      const session = direction === "start" ? group.sessions[0] : group.sessions.at(-1);
-      if (session) setSelectedSidebarSessionId(session.id);
-    };
+    if (!activeAgentKey || sidebarSessions.length === 0) return;
 
     const moveSidebarSelection = (offset: number) => {
       dismissShortcutHint();
-      if (visibleSidebarSessions.length === 0) {
-        selectGroupBoundary(offset >= 0 ? "start" : "end");
-        return;
-      }
-      const currentIndex = visibleSidebarSessions.findIndex(
-        (entry) => entry.session.id === selectedSidebarSessionId,
+      const currentIndex = sidebarSessions.findIndex(
+        (sessionItem) => sessionItem.id === selectedSidebarSessionId,
       );
       const baseIndex =
-        currentIndex >= 0 ? currentIndex : offset >= 0 ? -1 : visibleSidebarSessions.length;
-      const nextIndex = Math.max(
-        0,
-        Math.min(baseIndex + offset, visibleSidebarSessions.length - 1),
-      );
-      setSelectedSidebarSessionId(visibleSidebarSessions[nextIndex]?.session.id ?? null);
+        currentIndex >= 0 ? currentIndex : offset >= 0 ? -1 : sidebarSessions.length;
+      const nextIndex = Math.max(0, Math.min(baseIndex + offset, sidebarSessions.length - 1));
+      setSelectedSidebarSessionId(sidebarSessions[nextIndex]?.id ?? null);
     };
 
     if (key === "j") {
@@ -999,62 +908,21 @@ export default function App() {
     if (key === "g") {
       event.preventDefault();
       dismissShortcutHint();
-      selectGroupBoundary("start");
+      setSelectedSidebarSessionId(sidebarSessions[0]?.id ?? null);
       return;
     }
     if (key === "G") {
       event.preventDefault();
       dismissShortcutHint();
-      selectGroupBoundary("end");
+      setSelectedSidebarSessionId(sidebarSessions.at(-1)?.id ?? null);
       return;
     }
     if (key === "Enter") {
-      const selected = visibleSidebarSessions.find(
-        (entry) => entry.session.id === selectedSidebarSessionId,
-      );
+      const selected = sidebarSessions.find((item) => item.id === selectedSidebarSessionId);
       if (!selected) return;
       event.preventDefault();
       dismissShortcutHint();
-      navigate(`/${activeAgentKey}/${selected.session.id}`);
-      return;
-    }
-    if (key === "l") {
-      const selected =
-        visibleSidebarSessions.find((entry) => entry.session.id === selectedSidebarSessionId) ??
-        (sidebarGroups[0]
-          ? { session: sidebarGroups[0].sessions[0]!, groupKey: sidebarGroups[0].key }
-          : null);
-      if (!selected) return;
-      event.preventDefault();
-      dismissShortcutHint();
-      setExpandedGroups((prev) => {
-        const next = new Set(prev);
-        next.add(selected.groupKey);
-        return next;
-      });
-      setSelectedSidebarSessionId(selected.session.id);
-      return;
-    }
-    if (key === "h") {
-      const selected = visibleSidebarSessions.find(
-        (entry) => entry.session.id === selectedSidebarSessionId,
-      );
-      if (!selected) return;
-      event.preventDefault();
-      dismissShortcutHint();
-      setExpandedGroups((prev) => {
-        const next = new Set(prev);
-        next.delete(selected.groupKey);
-        return next;
-      });
-      const currentGroupIndex = sidebarGroups.findIndex((group) => group.key === selected.groupKey);
-      const fallbackGroup =
-        sidebarGroups[currentGroupIndex - 1] ?? sidebarGroups[currentGroupIndex + 1] ?? null;
-      const fallbackSession = fallbackGroup
-        ? (visibleSidebarSessions.find((entry) => entry.groupKey === fallbackGroup.key)?.session ??
-          fallbackGroup.sessions[0])
-        : null;
-      setSelectedSidebarSessionId(fallbackSession?.id ?? null);
+      navigate(`/${activeAgentKey}/${selected.id}`);
     }
   });
 
@@ -1257,67 +1125,19 @@ export default function App() {
                   No sessions yet
                 </span>
               ) : (
-                <div className="space-y-2">
-                  {sidebarGroups.map((group) => {
-                    const isExpanded = expandedGroups.has(group.key);
-                    return (
-                      <div key={group.key}>
-                        {/* Folder header */}
-                        <button
-                          onClick={() => toggleGroup(group.key)}
-                          className="console-mono flex w-full items-center gap-1.5 rounded-sm px-2 py-1 text-left text-xs text-[var(--console-muted)] hover:bg-[var(--console-surface-muted)]"
-                          title={group.key === "__unknown__" ? undefined : group.key}
-                        >
-                          <span className="shrink-0 text-[10px]">{isExpanded ? "▼" : "▶"}</span>
-                          <span className="line-clamp-1 font-semibold">{group.label}</span>
-                          <span className="ml-auto shrink-0 text-[11px]">
-                            {group.sessions.length}
-                          </span>
-                        </button>
-                        {/* Sessions under this folder */}
-                        {isExpanded && (
-                          <ul className="mt-0.5 space-y-0.5 pl-3">
-                            {group.sessions.map((item) => {
-                              const isActive =
-                                viewState.mode === "session" &&
-                                viewState.activeSessionSlug === item.id;
-                              return (
-                                <li key={item.id}>
-                                  <div
-                                    className={`relative flex items-start gap-2 rounded-sm border px-2 py-1.5 text-xs transition-colors ${
-                                      isActive
-                                        ? "border-[var(--console-border-strong)] bg-white text-[var(--console-text)] before:absolute before:bottom-0 before:left-0 before:top-0 before:w-0.5 before:bg-[var(--console-accent)]"
-                                        : selectedSidebarSessionId === item.id
-                                          ? "border-[var(--console-border)] bg-[var(--console-surface-muted)] text-[var(--console-text)]"
-                                          : "border-transparent text-[var(--console-muted)] hover:border-[var(--console-border)] hover:bg-[var(--console-surface-muted)]"
-                                    }`}
-                                  >
-                                    <Link
-                                      ref={(node) => {
-                                        if (node) sidebarItemRefs.current.set(item.id, node);
-                                        else sidebarItemRefs.current.delete(item.id);
-                                      }}
-                                      to={`/${activeAgentKey}/${item.id}`}
-                                      title={item.title}
-                                      className="console-mono line-clamp-1 min-w-0 flex-1"
-                                    >
-                                      {item.title}
-                                    </Link>
-                                    <BookmarkButton
-                                      active={isSessionBookmarked(activeAgentKey, item.id)}
-                                      onToggle={() => toggleSessionBookmark(item, activeAgentKey)}
-                                      className="relative z-10"
-                                    />
-                                  </div>
-                                </li>
-                              );
-                            })}
-                          </ul>
-                        )}
-                      </div>
-                    );
-                  })}
-                </div>
+                <SessionTreeSidebar
+                  sessions={sidebarSessions}
+                  activeSessionId={
+                    viewState.mode === "session" ? viewState.activeSessionSlug : null
+                  }
+                  selectedSessionId={selectedSidebarSessionId}
+                  onSelectSession={(sessionId) => {
+                    setSelectedSidebarSessionId(sessionId);
+                    navigate(`/${activeAgentKey}/${sessionId}`);
+                  }}
+                  isBookmarked={(sessionId) => isSessionBookmarked(activeAgentKey, sessionId)}
+                  onToggleBookmark={(session) => toggleSessionBookmark(session, activeAgentKey)}
+                />
               )}
             </section>
           </div>
