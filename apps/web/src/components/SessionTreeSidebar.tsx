@@ -98,6 +98,21 @@ function getDirectoryLabel(directory: string) {
   return directory.replace(/\/+$/, "").split("/").at(-1)?.trim() || "(unknown)";
 }
 
+function getProjectGroup(session: SessionHead) {
+  const identity = session.project_identity;
+  if (identity) {
+    return {
+      key: `${identity.kind}:${identity.key}`,
+      label: identity.displayName || getDirectoryLabel(session.directory),
+    };
+  }
+  const label = getDirectoryLabel(session.directory);
+  return {
+    key: label === "(unknown)" ? "__unknown__" : `path:${session.directory || label}`,
+    label,
+  };
+}
+
 function getSessionTime(session: SessionHead) {
   return session.time_updated ?? session.time_created;
 }
@@ -125,8 +140,7 @@ function buildSessionTreeModel(sessions: SessionHead[]): SessionTreeModel {
   const groups = new Map<string, { label: string; sessions: SessionHead[] }>();
 
   for (const session of sessions) {
-    const label = getDirectoryLabel(session.directory);
-    const key = label === "(unknown)" ? "__unknown__" : label;
+    const { key, label } = getProjectGroup(session);
     const group = groups.get(key);
     if (group) {
       group.sessions.push(session);
@@ -144,8 +158,16 @@ function buildSessionTreeModel(sessions: SessionHead[]): SessionTreeModel {
   });
 
   let order = 0;
-  for (const [groupKey, group] of sortedGroups) {
-    const groupPath = `${sanitizeSegment(group.label)}/`;
+  const usedGroupPaths = new Set<string>();
+  for (const [, group] of sortedGroups) {
+    const groupLeaf = sanitizeSegment(group.label);
+    let groupPath = `${groupLeaf}/`;
+    let groupSuffix = 2;
+    while (usedGroupPaths.has(groupPath)) {
+      groupPath = `${groupLeaf} (${groupSuffix})/`;
+      groupSuffix += 1;
+    }
+    usedGroupPaths.add(groupPath);
     const bareGroupPath = groupPath.slice(0, -1);
     const titleCounts = new Map<string, number>();
 
@@ -179,7 +201,6 @@ function buildSessionTreeModel(sessions: SessionHead[]): SessionTreeModel {
       sessionIdByPath.set(path, session.id);
       sessionByPath.set(path, session);
     }
-    if (groupKey === "__unknown__") groupCountByPath.set("(unknown)", `${group.sessions.length}`);
   }
 
   return {

@@ -5,6 +5,7 @@ import { beforeEach, afterEach, describe, expect, it, vi } from "vitest";
 import {
   clearCache,
   getCacheInfo,
+  listCachedProjectGroups,
   loadCachedSessions,
   searchSessions,
   saveCachedSessions,
@@ -154,6 +155,37 @@ describe("saveCachedSessions", () => {
     saveCachedSessions("claudecode", [makeSession("s1")]);
 
     expect(() => readFileSync(getLegacyCachePath(), "utf-8")).toThrow();
+  });
+
+  it("writes project groups from cached sessions", () => {
+    const claude = {
+      ...makeSession("claude-1"),
+      slug: "claudecode/claude-1",
+      project_identity: {
+        kind: "git_remote" as const,
+        key: "github.com/xingkaixin/codesesh",
+        displayName: "codesesh",
+      },
+    };
+    const codex = {
+      ...makeSession("codex-1"),
+      slug: "codex/codex-1",
+      project_identity: claude.project_identity,
+    };
+
+    saveCachedSessions("claudecode", [claude]);
+    saveCachedSessions("codex", [codex]);
+
+    expect(listCachedProjectGroups()).toEqual([
+      {
+        identityKind: "git_remote",
+        identityKey: "github.com/xingkaixin/codesesh",
+        displayName: "codesesh",
+        sources: ["claudecode", "codex"],
+        sessionCount: 2,
+        lastActivity: now,
+      },
+    ]);
   });
 });
 

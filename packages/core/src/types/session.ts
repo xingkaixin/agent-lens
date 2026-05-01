@@ -19,6 +19,28 @@ export type SmartTag =
   | "exploration"
   | "planning";
 
+export type ProjectIdentityKind =
+  | "git_remote"
+  | "git_common_dir"
+  | "manifest_path"
+  | "path"
+  | "loose";
+
+export interface ProjectIdentity {
+  kind: ProjectIdentityKind;
+  key: string;
+  displayName: string;
+}
+
+export interface ProjectGroup {
+  identityKind: ProjectIdentityKind;
+  identityKey: string;
+  displayName: string;
+  sources: string[];
+  sessionCount: number;
+  lastActivity: number | null;
+}
+
 export interface MessageTokens {
   input?: number;
   output?: number;
@@ -76,6 +98,7 @@ export interface SessionHead {
   slug: string;
   title: string;
   directory: string;
+  project_identity?: ProjectIdentity;
   time_created: number;
   time_updated?: number;
   stats: SessionStats;
@@ -90,6 +113,7 @@ export interface SessionData {
   title: string;
   slug?: string | null;
   directory: string;
+  project_identity?: ProjectIdentity;
   version?: string | null;
   time_created: number;
   time_updated?: number;

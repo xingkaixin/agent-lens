@@ -21,6 +21,7 @@ export interface SessionHead {
   slug: string;
   title: string;
   directory: string;
+  project_identity?: ProjectIdentity;
   time_created: number;
   time_updated?: number;
   stats: {
@@ -32,6 +33,19 @@ export interface SessionHead {
   };
   smart_tags?: SmartTag[];
   smart_tags_source_updated_at?: number;
+}
+
+export type ProjectIdentityKind =
+  | "git_remote"
+  | "git_common_dir"
+  | "manifest_path"
+  | "path"
+  | "loose";
+
+export interface ProjectIdentity {
+  kind: ProjectIdentityKind;
+  key: string;
+  displayName: string;
 }
 
 export interface MessageTokens {
@@ -88,6 +102,7 @@ export interface SessionData {
   title: string;
   slug?: string | null;
   directory: string;
+  project_identity?: ProjectIdentity;
   version?: string | null;
   time_created: number;
   time_updated?: number;
@@ -102,6 +117,15 @@ export interface SessionData {
   messages: Message[];
   smart_tags?: SmartTag[];
   smart_tags_source_updated_at?: number;
+}
+
+export interface ProjectGroup {
+  identityKind: ProjectIdentityKind;
+  identityKey: string;
+  displayName: string;
+  sources: string[];
+  sessionCount: number;
+  lastActivity: number | null;
 }
 
 export interface SessionsUpdatedEvent {
@@ -211,9 +235,21 @@ export async function fetchAgents(): Promise<AgentInfo[]> {
   return res.json();
 }
 
-export async function fetchSessions(agent?: string): Promise<{ sessions: SessionHead[] }> {
+export async function fetchProjects(): Promise<{ projects: ProjectGroup[] }> {
+  const res = await fetch("/api/projects");
+  if (!res.ok) throw new Error("Failed to fetch projects");
+  return res.json();
+}
+
+export async function fetchSessions(
+  options: {
+    agent?: string;
+    projectKey?: string;
+  } = {},
+): Promise<{ sessions: SessionHead[] }> {
   const params = new URLSearchParams();
-  if (agent) params.set("agent", agent);
+  if (options.agent) params.set("agent", options.agent);
+  if (options.projectKey) params.set("projectKey", options.projectKey);
   const res = await fetch(`/api/sessions?${params}`);
   if (!res.ok) throw new Error("Failed to fetch sessions");
   return res.json();

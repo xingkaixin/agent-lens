@@ -4,6 +4,7 @@ import {
   handleGetBookmarks,
   handleGetConfig,
   handleGetDashboard,
+  handleGetProjects,
   handleDeleteBookmark,
   handleImportBookmarks,
   handleSearchSessions,
@@ -78,6 +79,7 @@ export function createApiRoutes(
 
   api.get("/config", (c) => handleGetConfig(c, listDefaults));
   api.get("/agents", (c) => handleGetAgents(c, scanSource, listDefaults));
+  api.get("/projects", (c) => handleGetProjects(c, scanSource, listDefaults));
   api.get("/sessions", (c) => handleGetSessions(c, scanSource, listDefaults));
   api.get("/search", (c) => handleSearchSessions(c, scanSource, listDefaults));
   api.get("/sessions/:agent/:id", (c) => handleGetSessionData(c, scanSource));

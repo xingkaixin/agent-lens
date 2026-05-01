@@ -332,7 +332,14 @@ describe("scanSessions", () => {
     expect(result.sessions[0]!.id).toBe("fresh");
     expect(mockedSaveCachedSessions).toHaveBeenCalledWith(
       "test",
-      [{ ...refreshedSessions[0]!, smart_tags: [], smart_tags_source_updated_at: 1000 }],
+      [
+        expect.objectContaining({
+          ...refreshedSessions[0]!,
+          project_identity: expect.objectContaining({ kind: "path", key: "/home/user/project" }),
+          smart_tags: [],
+          smart_tags_source_updated_at: 1000,
+        }),
+      ],
       {},
     );
   });

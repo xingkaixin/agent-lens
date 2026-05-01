@@ -7,6 +7,7 @@ export {
   saveCachedSessions,
   clearCache,
   getCacheInfo,
+  listCachedProjectGroups,
   searchSessions,
   syncSessionSearchIndex,
 } from "./cache.js";

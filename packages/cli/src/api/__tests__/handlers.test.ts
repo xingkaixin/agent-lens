@@ -3,6 +3,7 @@ import {
   handleGetAgents,
   handleGetConfig,
   handleGetDashboard,
+  handleGetProjects,
   handleGetSessions,
   handleGetSessionData,
   type ScanResultSource,
@@ -173,6 +174,21 @@ describe("handleGetSessions", () => {
     expect(response.sessions).toHaveLength(2);
   });
 
+  it("filters by project identity key", () => {
+    const sessions = [
+      makeSession("a", {
+        project_identity: { kind: "git_remote", key: "github.com/acme/app", displayName: "app" },
+      }),
+      makeSession("b", {
+        project_identity: { kind: "path", key: "/home/user/other", displayName: "other" },
+      }),
+    ];
+    const c = makeMockContext({ query: { projectKey: "github.com/acme/app" } });
+    handleGetSessions(c, makeScanSource({ sessions, byAgent: { claudecode: sessions } }));
+    const response = c.json.mock.calls[0]![0];
+    expect(response.sessions.map((session: SessionHead) => session.id)).toEqual(["a"]);
+  });
+
   it("filters by from date", () => {
     const c = makeMockContext({ query: { from: "2024-01-01" } });
     handleGetSessions(
@@ -226,6 +242,36 @@ describe("handleGetSessions", () => {
     const response = c.json.mock.calls[0]![0];
     // Invalid date → filter not applied
     expect(response.sessions).toHaveLength(2);
+  });
+});
+
+describe("handleGetProjects", () => {
+  it("returns project groups sorted by recent activity", () => {
+    const sessions = [
+      makeSession("a", {
+        slug: "claudecode/a",
+        project_identity: { kind: "git_remote", key: "github.com/acme/app", displayName: "app" },
+        time_updated: 100,
+      }),
+      makeSession("b", {
+        slug: "codex/b",
+        project_identity: { kind: "git_remote", key: "github.com/acme/app", displayName: "app" },
+        time_updated: 200,
+      }),
+    ];
+    const c = makeMockContext();
+    handleGetProjects(c, makeScanSource({ sessions, byAgent: { claudecode: sessions } }));
+    const response = c.json.mock.calls[0]![0];
+    expect(response.projects).toEqual([
+      {
+        identityKind: "git_remote",
+        identityKey: "github.com/acme/app",
+        displayName: "app",
+        sources: ["claudecode", "codex"],
+        sessionCount: 2,
+        lastActivity: 200,
+      },
+    ]);
   });
 });
 

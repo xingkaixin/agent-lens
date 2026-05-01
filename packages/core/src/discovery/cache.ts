@@ -5,10 +5,16 @@
 import { existsSync, rmSync, unlinkSync } from "node:fs";
 import { join } from "node:path";
 import { homedir } from "node:os";
-import type { SessionData, SessionHead } from "../types/index.js";
+import type {
+  ProjectGroup,
+  ProjectIdentityKind,
+  SessionData,
+  SessionHead,
+} from "../types/index.js";
+import { buildProjectGroups, computeIdentity, realFs } from "../projects/index.js";
 import { openDb, type DatabaseRow } from "../utils/sqlite.js";
 
-const CACHE_VERSION = 4;
+const CACHE_VERSION = 5;
 const CACHE_TTL = 7 * 24 * 60 * 60 * 1000;
 const CACHE_FILENAME = "codesesh.db";
 const LEGACY_CACHE_FILENAME = "scan-cache.json";
@@ -48,6 +54,15 @@ interface SearchResultRow extends DatabaseRow {
   time_created?: number;
   time_updated?: number | null;
   snippet?: string | null;
+}
+
+interface ProjectGroupRow extends DatabaseRow {
+  identity_kind?: ProjectIdentityKind;
+  identity_key?: string;
+  display_name?: string;
+  sources_csv?: string | null;
+  session_count?: number;
+  last_activity?: number | null;
 }
 
 export interface SearchResult {
@@ -121,6 +136,9 @@ function ensureSchema(db: NonNullable<ReturnType<typeof openDb>>): void {
       slug TEXT NOT NULL,
       title TEXT NOT NULL,
       directory TEXT NOT NULL,
+      project_identity_kind TEXT NOT NULL DEFAULT 'path',
+      project_identity_key TEXT NOT NULL DEFAULT '',
+      project_display_name TEXT NOT NULL DEFAULT '',
       time_created INTEGER NOT NULL,
       time_updated INTEGER,
       activity_time INTEGER NOT NULL,
@@ -129,6 +147,31 @@ function ensureSchema(db: NonNullable<ReturnType<typeof openDb>>): void {
       indexed_at INTEGER NOT NULL,
       UNIQUE(agent_name, session_id)
     );
+
+    CREATE TABLE IF NOT EXISTS project_sessions (
+      agent_name TEXT NOT NULL,
+      session_id TEXT NOT NULL,
+      identity_kind TEXT NOT NULL,
+      identity_key TEXT NOT NULL,
+      display_name TEXT NOT NULL,
+      directory TEXT NOT NULL,
+      activity_time INTEGER NOT NULL,
+      PRIMARY KEY (agent_name, session_id)
+    );
+
+    CREATE INDEX IF NOT EXISTS idx_project_sessions_identity
+      ON project_sessions(identity_kind, identity_key);
+
+    CREATE VIEW IF NOT EXISTS project_groups_v AS
+      SELECT
+        identity_kind,
+        identity_key,
+        MIN(display_name) AS display_name,
+        GROUP_CONCAT(DISTINCT agent_name) AS sources_csv,
+        COUNT(*) AS session_count,
+        MAX(activity_time) AS last_activity
+      FROM project_sessions
+      GROUP BY identity_kind, identity_key;
 
     CREATE VIRTUAL TABLE IF NOT EXISTS session_documents_fts USING fts5(
       title,
@@ -155,6 +198,19 @@ function ensureSchema(db: NonNullable<ReturnType<typeof openDb>>): void {
     END;
   `);
 
+  const sessionDocumentColumns = new Set(
+    (db.prepare("PRAGMA table_info(session_documents)").all() as DatabaseRow[]).map((row) =>
+      String(row.name),
+    ),
+  );
+  if (!sessionDocumentColumns.has("project_identity_kind")) {
+    db.exec(`
+      ALTER TABLE session_documents ADD COLUMN project_identity_kind TEXT NOT NULL DEFAULT 'path';
+      ALTER TABLE session_documents ADD COLUMN project_identity_key TEXT NOT NULL DEFAULT '';
+      ALTER TABLE session_documents ADD COLUMN project_display_name TEXT NOT NULL DEFAULT '';
+    `);
+  }
+
   const versionRow = db.prepare("SELECT value FROM cache_meta WHERE key = 'version'").get() as
     | DatabaseRow
     | undefined;
@@ -168,6 +224,7 @@ function ensureSchema(db: NonNullable<ReturnType<typeof openDb>>): void {
     DELETE FROM agent_cache;
     DELETE FROM cached_sessions;
     DELETE FROM session_documents;
+    DELETE FROM project_sessions;
     INSERT INTO session_documents_fts(session_documents_fts) VALUES ('rebuild');
     INSERT INTO cache_meta(key, value)
     VALUES ('version', '${CACHE_VERSION}')
@@ -331,6 +388,7 @@ export function saveCachedSessions(
   withCacheDb((db) => {
     const deleteAgent = db.prepare("DELETE FROM agent_cache WHERE agent_name = ?");
     const deleteSessions = db.prepare("DELETE FROM cached_sessions WHERE agent_name = ?");
+    const deleteProjectSessions = db.prepare("DELETE FROM project_sessions WHERE agent_name = ?");
     const upsertAgent = db.prepare(`
       INSERT INTO agent_cache(agent_name, timestamp)
       VALUES (?, ?)
@@ -340,19 +398,41 @@ export function saveCachedSessions(
       INSERT INTO cached_sessions(agent_name, session_id, session_json, meta_json)
       VALUES (?, ?, ?, ?)
     `);
+    const insertProjectSession = db.prepare(`
+      INSERT INTO project_sessions(
+        agent_name,
+        session_id,
+        identity_kind,
+        identity_key,
+        display_name,
+        directory,
+        activity_time
+      ) VALUES (?, ?, ?, ?, ?, ?, ?)
+    `);
 
     const write = db.transaction(() => {
       const timestamp = Date.now();
       deleteAgent.run(agentName);
       deleteSessions.run(agentName);
+      deleteProjectSessions.run(agentName);
       upsertAgent.run(agentName, timestamp);
 
       for (const session of sessions) {
+        const identity = session.project_identity ?? computeIdentity(session.directory, realFs);
         insertSession.run(
           agentName,
           session.id,
           JSON.stringify(session),
           meta[session.id] ? JSON.stringify(meta[session.id]) : null,
+        );
+        insertProjectSession.run(
+          agentName,
+          session.id,
+          identity.kind,
+          identity.key,
+          identity.displayName,
+          session.directory,
+          session.time_updated ?? session.time_created,
         );
       }
     });
@@ -372,6 +452,7 @@ export function clearCache(): void {
     db.exec(`
       DELETE FROM agent_cache;
       DELETE FROM cached_sessions;
+      DELETE FROM project_sessions;
     `);
   });
 
@@ -467,17 +548,23 @@ export function syncSessionSearchIndex(
         slug,
         title,
         directory,
+        project_identity_kind,
+        project_identity_key,
+        project_display_name,
         time_created,
         time_updated,
         activity_time,
         content_text,
         content_hash,
         indexed_at
-      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
       ON CONFLICT(agent_name, session_id) DO UPDATE SET
         slug = excluded.slug,
         title = excluded.title,
         directory = excluded.directory,
+        project_identity_kind = excluded.project_identity_kind,
+        project_identity_key = excluded.project_identity_key,
+        project_display_name = excluded.project_display_name,
         time_created = excluded.time_created,
         time_updated = excluded.time_updated,
         activity_time = excluded.activity_time,
@@ -493,12 +580,17 @@ export function syncSessionSearchIndex(
 
       for (const entry of loaded) {
         const activityTime = entry.session.time_updated ?? entry.session.time_created;
+        const identity =
+          entry.session.project_identity ?? computeIdentity(entry.session.directory, realFs);
         upsertRow.run(
           agentName,
           entry.session.id,
           entry.session.slug,
           entry.session.title,
           entry.session.directory,
+          identity.kind,
+          identity.key,
+          identity.displayName,
           entry.session.time_created,
           entry.session.time_updated ?? null,
           activityTime,
@@ -541,7 +633,7 @@ export function searchSessions(query: string, options: SearchOptions = {}): Sear
           JOIN session_documents d ON d.id = session_documents_fts.rowid
           WHERE session_documents_fts MATCH ?
             AND (? IS NULL OR d.agent_name = ?)
-            AND (? IS NULL OR LOWER(d.directory) LIKE ?)
+            AND (? IS NULL OR d.project_identity_key = ? OR LOWER(d.directory) LIKE ?)
             AND (? IS NULL OR d.activity_time >= ?)
             AND (? IS NULL OR d.activity_time <= ?)
           ORDER BY bm25(session_documents_fts, 8.0, 1.0), d.activity_time DESC
@@ -552,7 +644,8 @@ export function searchSessions(query: string, options: SearchOptions = {}): Sear
         ftsQuery,
         options.agent ?? null,
         options.agent ?? null,
-        options.cwd?.toLowerCase() ?? null,
+        options.cwd ?? null,
+        options.cwd ? computeIdentity(options.cwd, realFs).key : null,
         options.cwd ? `%${options.cwd.toLowerCase()}%` : null,
         options.from ?? null,
         options.from ?? null,
@@ -582,4 +675,43 @@ export function searchSessions(query: string, options: SearchOptions = {}): Sear
   });
 
   return results ?? [];
+}
+
+export function listCachedProjectGroups(sessions?: SessionHead[]): ProjectGroup[] {
+  if (sessions) {
+    return buildProjectGroups(sessions);
+  }
+
+  if (!hasCacheStorage()) {
+    return [];
+  }
+
+  const groups = withCacheDb((db) => {
+    const rows = db
+      .prepare(
+        `
+          SELECT identity_kind, identity_key, display_name, sources_csv, session_count, last_activity
+          FROM project_groups_v
+          ORDER BY
+            CASE identity_kind WHEN 'loose' THEN 1 ELSE 0 END,
+            last_activity IS NULL,
+            last_activity DESC
+        `,
+      )
+      .all() as ProjectGroupRow[];
+
+    return rows.map((row) => ({
+      identityKind: row.identity_kind ?? "path",
+      identityKey: String(row.identity_key ?? ""),
+      displayName: String(row.display_name ?? ""),
+      sources: String(row.sources_csv ?? "")
+        .split(",")
+        .filter(Boolean)
+        .sort(),
+      sessionCount: Number(row.session_count ?? 0),
+      lastActivity: row.last_activity == null ? null : Number(row.last_activity),
+    }));
+  });
+
+  return groups ?? [];
 }

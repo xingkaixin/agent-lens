@@ -11,9 +11,12 @@ import {
   deleteBookmark,
   getAgentInfoMap,
   classifySessionTags,
+  computeIdentity,
   getSmartTagSourceTimestamp,
   importBookmarks,
+  listCachedProjectGroups,
   listBookmarks,
+  realFs,
   searchSessions,
   syncSessionSearchIndex,
   upsertBookmark,
@@ -111,6 +114,13 @@ function filterSessionsByActivityWindow(
   });
 }
 
+function matchesProjectScope(session: SessionHead, cwd: string): boolean {
+  if (!session.directory) return false;
+  const identity = computeIdentity(cwd, realFs);
+  if (session.project_identity?.key === identity.key) return true;
+  return session.directory.toLowerCase().includes(cwd.toLowerCase());
+}
+
 export function handleGetConfig(c: Context, defaults: SessionListDefaults) {
   return c.json({
     window: {
@@ -138,6 +148,20 @@ export function handleGetAgents(
   return c.json(info);
 }
 
+export function handleGetProjects(
+  c: Context,
+  scanSource: ScanResultSource,
+  defaults: SessionListDefaults = {},
+) {
+  const scanResult = scanSource.getSnapshot();
+  const { from, to } = defaults;
+  return c.json({
+    projects: listCachedProjectGroups(
+      filterSessionsByActivityWindow(scanResult.sessions, from, to),
+    ),
+  });
+}
+
 export function handleGetSessions(
   c: Context,
   scanSource: ScanResultSource,
@@ -146,7 +170,8 @@ export function handleGetSessions(
   const scanResult = scanSource.getSnapshot();
   const agent = c.req.query("agent");
   const q = c.req.query("q")?.toLowerCase();
-  const cwd = c.req.query("cwd")?.toLowerCase();
+  const cwd = c.req.query("cwd");
+  const projectKey = c.req.query("projectKey");
   const tag = c.req.query("tag")?.toLowerCase();
   const from = parseDateParam(c.req.query("from"), defaults.from);
   const to = parseDateParam(c.req.query("to"), defaults.to);
@@ -160,8 +185,10 @@ export function handleGetSessions(
     sessions = [...scanResult.sessions];
   }
 
-  if (cwd) {
-    sessions = sessions.filter((s) => s.directory.toLowerCase().includes(cwd));
+  if (projectKey) {
+    sessions = sessions.filter((s) => s.project_identity?.key === projectKey);
+  } else if (cwd) {
+    sessions = sessions.filter((s) => matchesProjectScope(s, cwd));
   }
   sessions = filterSessionsByActivityWindow(sessions, from, to);
   if (tag) {
@@ -226,8 +253,10 @@ export async function handleGetSessionData(c: Context, scanSource: ScanResultSou
 
   try {
     const data: SessionData = agent.getSessionData(sessionId);
+    const head = scanResult.byAgent[agentName]?.find((item) => item.id === sessionId);
     return c.json({
       ...data,
+      project_identity: data.project_identity ?? head?.project_identity,
       smart_tags: classifySessionTags(data),
       smart_tags_source_updated_at: getSmartTagSourceTimestamp(data),
     });

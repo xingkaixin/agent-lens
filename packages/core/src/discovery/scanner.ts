@@ -1,14 +1,15 @@
 import { resolve, sep } from "node:path";
-import type { SessionHead } from "../types/index.js";
+import type { ProjectIdentity, SessionHead } from "../types/index.js";
 import type { BaseAgent, SessionCacheMeta } from "../agents/index.js";
 import { createRegisteredAgents } from "../agents/index.js";
+import { computeIdentity, realFs } from "../projects/index.js";
 import { classifySessionTags, getSmartTagSourceTimestamp, perf } from "../utils/index.js";
 import { loadCachedSessions, saveCachedSessions } from "./cache.js";
 
 export interface ScanOptions {
   /** Filter to specific agent name(s) */
   agents?: string[];
-  /** Filter to sessions from a specific project directory (substring match) */
+  /** Filter to sessions from a specific project identity or directory scope */
   cwd?: string;
   /** Only include sessions created after this timestamp (ms) */
   from?: number;
@@ -52,12 +53,42 @@ function isPathScopeMatch(queryPath: string, sessionPath: string): boolean {
   return sn === qn || sn.startsWith(qn + "/") || qn.startsWith(sn + "/");
 }
 
+function createIdentityResolver() {
+  const cache = new Map<string, ProjectIdentity>();
+  return (directory: string | null | undefined) => {
+    const key = directory || "";
+    const cached = cache.get(key);
+    if (cached) return cached;
+    const identity = computeIdentity(directory, realFs);
+    cache.set(key, identity);
+    return identity;
+  };
+}
+
+function attachProjectIdentities(sessions: SessionHead[]): SessionHead[] {
+  const resolveIdentity = createIdentityResolver();
+  return sessions.map((session) => {
+    if (session.project_identity) return session;
+    return {
+      ...session,
+      project_identity: resolveIdentity(session.directory),
+    };
+  });
+}
+
+function isProjectScopeMatch(queryPath: string, session: SessionHead): boolean {
+  if (!session.directory) return false;
+  const queryIdentity = computeIdentity(queryPath, realFs);
+  if (session.project_identity?.key === queryIdentity.key) return true;
+  return isPathScopeMatch(queryPath, session.directory);
+}
+
 export function filterSessions(sessions: SessionHead[], options: ScanOptions): SessionHead[] {
   let result = sessions;
 
   if (options.cwd) {
     const cwd = options.cwd;
-    result = result.filter((s) => isPathScopeMatch(cwd, s.directory));
+    result = result.filter((s) => isProjectScopeMatch(cwd, s));
   }
 
   if (options.from != null) {
@@ -176,7 +207,7 @@ async function scanAgentSmart(
           const updatedSessions = await Promise.resolve(
             agent.incrementalScan!(cached.sessions, checkResult.changedIds || []),
           );
-          const tagged = ensureSessionTags(agent, updatedSessions);
+          const tagged = ensureSessionTags(agent, attachProjectIdentities(updatedSessions));
 
           saveCachedSessions(agent.name, tagged.sessions, buildAgentCacheMeta(agent));
 
@@ -193,7 +224,8 @@ async function scanAgentSmart(
         onProgress?.({ agent: agent.name, phase: "complete", newCount: cached.sessions.length });
       }
 
-      const tagged = ensureSessionTags(agent, cached.sessions);
+      const cachedWithIdentity = attachProjectIdentities(cached.sessions);
+      const tagged = ensureSessionTags(agent, cachedWithIdentity);
       if (tagged.changed) {
         saveCachedSessions(agent.name, tagged.sessions, buildAgentCacheMeta(agent));
       }
@@ -227,7 +259,8 @@ async function scanAgentFull(
     const scanMarker = perf.start(`agent:${agent.name}:scan`);
     const heads = agent.scan();
     perf.end(scanMarker);
-    const tagged = ensureSessionTags(agent, heads);
+    const headsWithIdentity = attachProjectIdentities(heads);
+    const tagged = ensureSessionTags(agent, headsWithIdentity);
 
     // 收集元数据
     const meta = buildAgentCacheMeta(agent);
