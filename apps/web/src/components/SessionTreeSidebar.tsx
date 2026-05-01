@@ -88,6 +88,10 @@ const SESSION_TREE_CSS = `
     [data-truncate-marker] {
     right: 0;
   }
+
+  [data-type='item'][data-item-type='file'] [data-truncate-marker] {
+    display: none;
+  }
 `;
 
 function sanitizeSegment(value: string) {

@@ -330,10 +330,11 @@ describe("handleGetDashboard", () => {
     expect(response.perAgent[0]?.name).toBe("claudecode");
   });
 
-  it("aggregates smart tag distribution", () => {
+  it("keeps smart tags on recent sessions", () => {
     const c = makeMockContext();
     const sessions = [
       makeSession("a", {
+        time_updated: Date.now(),
         smart_tags: ["bugfix", "testing"],
         stats: {
           message_count: 2,
@@ -343,6 +344,7 @@ describe("handleGetDashboard", () => {
         },
       }),
       makeSession("b", {
+        time_updated: Date.now() - 1000,
         smart_tags: ["bugfix"],
         stats: {
           message_count: 3,
@@ -356,10 +358,8 @@ describe("handleGetDashboard", () => {
     handleGetDashboard(c, makeScanSource({ sessions, byAgent: { claudecode: sessions } }));
     const response = c.json.mock.calls[0]![0];
 
-    expect(response.tagDistribution).toEqual([
-      { tag: "bugfix", sessions: 2, messages: 5, tokens: 17 },
-      { tag: "testing", sessions: 1, messages: 2, tokens: 15 },
-    ]);
+    expect(response.tagDistribution).toBeUndefined();
+    expect(response.recentSessions[0].smart_tags).toEqual(["bugfix", "testing"]);
   });
 
   it("uses activity time instead of creation time for dashboard windowing", () => {

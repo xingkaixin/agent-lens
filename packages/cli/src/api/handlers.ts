@@ -423,13 +423,6 @@ export interface ModelDistributionEntry {
   sessions: number;
 }
 
-export interface DashboardTagStat {
-  tag: SmartTag;
-  sessions: number;
-  messages: number;
-  tokens: number;
-}
-
 export interface DashboardTotals {
   sessions: number;
   messages: number;
@@ -448,7 +441,6 @@ export interface DashboardData {
   dailyActivity: DashboardDailyBucket[];
   dailyTokenActivity: DailyTokenBucket[];
   modelDistribution: ModelDistributionEntry[];
-  tagDistribution: DashboardTagStat[];
   recentSessions: DashboardRecentSession[];
   /** Time window covered by dailyActivity (inclusive, ms) */
   window: { from: number; to: number; days: number };
@@ -574,7 +566,6 @@ export function handleGetDashboard(
   }
 
   const modelAgg = new Map<string, { tokens: number; sessions: number }>();
-  const tagAgg = new Map<SmartTag, { sessions: number; messages: number; tokens: number }>();
 
   for (const session of windowed) {
     const key = toLocalDateKey(getSessionActivityTime(session));
@@ -606,22 +597,6 @@ export function handleGetDashboard(
         }
       }
     }
-
-    for (const tag of session.smart_tags ?? []) {
-      const entry = tagAgg.get(tag);
-      const tokens = getTotalTokens(session.stats);
-      if (entry) {
-        entry.sessions += 1;
-        entry.messages += session.stats.message_count;
-        entry.tokens += tokens;
-      } else {
-        tagAgg.set(tag, {
-          sessions: 1,
-          messages: session.stats.message_count,
-          tokens,
-        });
-      }
-    }
   }
 
   const dailyActivity = [...dailyMap.values()];
@@ -630,15 +605,6 @@ export function handleGetDashboard(
   const modelDistribution: ModelDistributionEntry[] = [...modelAgg.entries()]
     .map(([model, { tokens, sessions: count }]) => ({ model, tokens, sessions: count }))
     .sort((a, b) => b.tokens - a.tokens);
-
-  const tagDistribution: DashboardTagStat[] = [...tagAgg.entries()]
-    .map(([tag, { sessions: count, messages, tokens }]) => ({
-      tag,
-      sessions: count,
-      messages,
-      tokens,
-    }))
-    .sort((a, b) => b.sessions - a.sessions || a.tag.localeCompare(b.tag));
 
   const recentSessions: DashboardRecentSession[] = [...windowed]
     .sort((a, b) => getSessionActivityTime(b) - getSessionActivityTime(a))
@@ -660,7 +626,6 @@ export function handleGetDashboard(
     dailyActivity,
     dailyTokenActivity,
     modelDistribution,
-    tagDistribution,
     recentSessions,
     window: { from, to, days },
   };

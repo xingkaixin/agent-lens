@@ -167,13 +167,6 @@ export interface ModelDistributionEntry {
   sessions: number;
 }
 
-export interface DashboardTagStat {
-  tag: SmartTag;
-  sessions: number;
-  messages: number;
-  tokens: number;
-}
-
 export interface DashboardTotals {
   sessions: number;
   messages: number;
@@ -192,7 +185,6 @@ export interface DashboardData {
   dailyActivity: DashboardDailyBucket[];
   dailyTokenActivity: DailyTokenBucket[];
   modelDistribution: ModelDistributionEntry[];
-  tagDistribution: DashboardTagStat[];
   recentSessions: DashboardRecentSession[];
   window: { from: number; to: number; days: number };
 }
