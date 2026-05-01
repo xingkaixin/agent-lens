@@ -37,6 +37,7 @@ import { Dashboard } from "./components/Dashboard";
 import { ErrorBoundary } from "./components/ErrorBoundary";
 import { BookmarkButton } from "./components/BookmarkButton";
 import { SessionTreeSidebar } from "./components/SessionTreeSidebar";
+import { SmartTagChips } from "./components/SmartTagChips";
 import {
   clearLegacyBookmarks,
   getSessionBookmarkKey,
@@ -611,7 +612,7 @@ export default function App() {
 
   // Header
   let headerTitle = "CodeSesh";
-  let headerSubtitle = "Select an agent to browse sessions";
+  let headerSubtitle: ReactNode = "Select an agent to browse sessions";
   if (viewState.mode === "root") {
     headerTitle = isSearchMode ? "Search" : "Dashboard";
     headerSubtitle = isSearchMode
@@ -639,7 +640,14 @@ export default function App() {
     } else if (session) {
       headerTitle = session.title || "Conversation";
       const updated = session.time_updated ?? session.time_created;
-      headerSubtitle = `ID: #${session.id.slice(0, 8)} · Updated ${formatRelativeTime(updated)}`;
+      headerSubtitle = (
+        <>
+          <span>ID: #{session.id.slice(0, 8)}</span>
+          <span>·</span>
+          <span>Updated {formatRelativeTime(updated)}</span>
+          <SmartTagChips tags={session.smart_tags} limit={9} className="inline-flex" />
+        </>
+      );
     }
   }
   if (viewState.mode === "missingAgent") {
@@ -1190,9 +1198,9 @@ export default function App() {
                   {headerTitle}
                 </h1>
               </div>
-              <p className="console-mono mt-1 text-xs text-[var(--console-muted)]">
+              <div className="console-mono mt-1 flex flex-wrap items-center gap-x-2 gap-y-1 text-xs text-[var(--console-muted)]">
                 {headerSubtitle}
-              </p>
+              </div>
               <div className="mt-2 flex flex-wrap items-center gap-2">
                 {!shortcutHintDismissed ? (
                   <div className="console-mono inline-flex items-center gap-2 rounded-sm border border-[var(--console-border)] bg-[var(--console-surface-muted)] px-2 py-1 text-[11px] text-[var(--console-text)]">
