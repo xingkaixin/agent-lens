@@ -1554,7 +1554,7 @@ function SessionToc({
   const toolsEnabled = selectedFilters.has("tools_all");
 
   return (
-    <aside className="lg:sticky lg:top-4">
+    <aside className="console-scrollbar lg:sticky lg:top-4 lg:max-h-[calc(100dvh-14rem)] lg:overflow-y-auto lg:overscroll-contain">
       <div className="space-y-4">
         <div className="rounded-sm border border-[var(--console-border)] bg-white shadow-[0_1px_2px_rgba(15,23,42,0.04)]">
           <div className="flex items-center gap-2 border-b border-[var(--console-border)] px-4 py-3">
