@@ -6,6 +6,18 @@ export interface SessionCacheMeta {
   [key: string]: unknown;
 }
 
+export interface AgentScanOptions {
+  from?: number;
+  to?: number;
+  fast?: boolean;
+}
+
+export function matchesScanWindow(activityTime: number, options?: AgentScanOptions): boolean {
+  if (options?.from != null && activityTime < options.from) return false;
+  if (options?.to != null && activityTime > options.to) return false;
+  return true;
+}
+
 /** 变更检测结果 */
 export interface ChangeCheckResult {
   /** 是否有变更 */
@@ -24,7 +36,7 @@ export abstract class BaseAgent {
   abstract isAvailable(): boolean;
 
   /** Scan for available sessions, returning lightweight metadata. */
-  abstract scan(): SessionHead[];
+  abstract scan(options?: AgentScanOptions): SessionHead[];
 
   /** Load full session data including all messages. */
   abstract getSessionData(sessionId: string): SessionData;

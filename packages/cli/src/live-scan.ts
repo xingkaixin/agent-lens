@@ -171,46 +171,37 @@ export class LiveScanStore {
   private refreshInFlight = new Set<string>();
   private pendingRefreshes = new Set<string>();
   private watchers: FSWatcher[] = [];
+  private fullScanTimer: NodeJS.Timeout | null = null;
 
   constructor(
     private readonly watchEnabled = true,
     private readonly scanOptions: ScanOptions = {},
+    private readonly startupScanOptions: Pick<ScanOptions, "from" | "to"> = {},
   ) {}
 
   async initialize(): Promise<void> {
     const initialResult = await scanSessions({
       ...this.scanOptions,
-      useCache: true,
+      ...this.startupScanOptions,
+      useCache: this.scanOptions.useCache ?? true,
       smartRefresh: false,
+      writeCache:
+        this.startupScanOptions.from != null || this.startupScanOptions.to != null
+          ? false
+          : undefined,
+      includeSmartTags:
+        this.startupScanOptions.from != null || this.startupScanOptions.to != null
+          ? false
+          : undefined,
+      fast:
+        this.startupScanOptions.from != null || this.startupScanOptions.to != null
+          ? true
+          : undefined,
     });
-    const knownAgents = createRegisteredAgents();
-    const agentMap = new Map<string, BaseAgent>();
-    const allowedAgents = this.getAllowedAgents();
-
-    for (const agent of initialResult.agents) {
-      agentMap.set(agent.name, agent);
-    }
-    for (const agent of knownAgents) {
-      if (!agentMap.has(agent.name)) {
-        agentMap.set(agent.name, agent);
-      }
-    }
-
-    this.agents = [...agentMap.values()].filter((agent) => {
-      if (!allowedAgents) {
-        return true;
-      }
-      return allowedAgents.has(agent.name.toLowerCase());
-    });
-
-    for (const agent of this.agents) {
-      this.byAgent[agent.name] = sortSessions(initialResult.byAgent[agent.name] ?? []);
-      this.refreshTimestamps.set(agent.name, Date.now());
-    }
-
-    this.rebuildSessions();
+    this.applyScanResult(initialResult);
     if (this.watchEnabled) {
       this.startWatching();
+      this.scheduleFullScan();
     }
   }
 
@@ -230,6 +221,11 @@ export class LiveScanStore {
   }
 
   async shutdown(): Promise<void> {
+    if (this.fullScanTimer) {
+      clearTimeout(this.fullScanTimer);
+      this.fullScanTimer = null;
+    }
+
     for (const timer of this.refreshTimers.values()) {
       clearTimeout(timer);
     }
@@ -247,6 +243,67 @@ export class LiveScanStore {
 
   private rebuildSessions(): void {
     this.sessions = sortSessions(Object.values(this.byAgent).flat());
+  }
+
+  private applyScanResult(result: ScanResult): void {
+    const knownAgents = createRegisteredAgents();
+    const agentMap = new Map<string, BaseAgent>();
+    const allowedAgents = this.getAllowedAgents();
+
+    for (const agent of result.agents) {
+      agentMap.set(agent.name, agent);
+    }
+    for (const agent of knownAgents) {
+      if (!agentMap.has(agent.name)) {
+        agentMap.set(agent.name, agent);
+      }
+    }
+
+    this.agents = [...agentMap.values()].filter((agent) => {
+      if (!allowedAgents) {
+        return true;
+      }
+      return allowedAgents.has(agent.name.toLowerCase());
+    });
+
+    this.byAgent = {};
+    for (const agent of this.agents) {
+      this.byAgent[agent.name] = sortSessions(result.byAgent[agent.name] ?? []);
+      this.refreshTimestamps.set(agent.name, Date.now());
+    }
+
+    this.rebuildSessions();
+  }
+
+  private scheduleFullScan(): void {
+    if (this.startupScanOptions.from == null && this.startupScanOptions.to == null) {
+      return;
+    }
+
+    this.fullScanTimer = setTimeout(() => {
+      this.fullScanTimer = null;
+      void this.runFullScan();
+    }, 5000);
+  }
+
+  private async runFullScan(): Promise<void> {
+    const result = await scanSessions({
+      ...this.scanOptions,
+      useCache: this.scanOptions.useCache ?? true,
+      smartRefresh: false,
+    });
+
+    this.applyScanResult(result);
+
+    this.emit({
+      type: "sessions-updated",
+      changedAgents: this.agents.map((agent) => agent.name),
+      newSessions: 0,
+      updatedSessions: 0,
+      removedSessions: 0,
+      totalSessions: this.sessions.length,
+      timestamp: Date.now(),
+    });
   }
 
   private getAllowedAgents(): Set<string> | null {

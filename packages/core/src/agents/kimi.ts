@@ -1,7 +1,7 @@
 import { createHash } from "node:crypto";
 import { existsSync, readFileSync, readdirSync, statSync } from "node:fs";
 import { join, basename, dirname } from "node:path";
-import { BaseAgent } from "./base.js";
+import { BaseAgent, matchesScanWindow } from "./base.js";
 import type { SessionHead, SessionData, Message, MessagePart } from "../types/index.js";
 import { resolveProviderRoots, firstExisting } from "../discovery/paths.js";
 import { parseJsonlLines } from "../utils/jsonl.js";
@@ -22,7 +22,7 @@ function mapToolTitle(toolName: string): string {
   return KIMI_TOOL_TITLE_MAP[toolName] ?? toolName;
 }
 
-import type { SessionCacheMeta, ChangeCheckResult } from "./base.js";
+import type { AgentScanOptions, SessionCacheMeta, ChangeCheckResult } from "./base.js";
 
 interface SessionMeta extends SessionCacheMeta {
   id: string;
@@ -216,7 +216,7 @@ export class KimiAgent extends BaseAgent {
     }
   }
 
-  scan(): SessionHead[] {
+  scan(options?: AgentScanOptions): SessionHead[] {
     if (!this.basePath) return [];
 
     const scanMarker = perf.start("kimi:scan");
@@ -233,6 +233,7 @@ export class KimiAgent extends BaseAgent {
         perf.end(parseMarker);
 
         if (!meta) continue;
+        if (!matchesScanWindow(meta.createdAt, options)) continue;
 
         this.sessionMetaMap.set(meta.id, meta);
         const stats = this.extractStats(meta.sourcePath);

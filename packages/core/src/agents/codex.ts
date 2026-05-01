@@ -1,6 +1,14 @@
-import { existsSync, readFileSync, readdirSync, statSync } from "node:fs";
+import {
+  closeSync,
+  existsSync,
+  openSync,
+  readFileSync,
+  readSync,
+  readdirSync,
+  statSync,
+} from "node:fs";
 import { join, basename } from "node:path";
-import { BaseAgent } from "./base.js";
+import { BaseAgent, matchesScanWindow } from "./base.js";
 import type { SessionHead, SessionData, Message, MessagePart } from "../types/index.js";
 import { resolveProviderRoots, firstExisting } from "../discovery/paths.js";
 import { parseJsonlLines } from "../utils/jsonl.js";
@@ -224,7 +232,7 @@ function extractPatchContent(
 // Session meta
 // ---------------------------------------------------------------------------
 
-import type { SessionCacheMeta, ChangeCheckResult } from "./base.js";
+import type { AgentScanOptions, SessionCacheMeta, ChangeCheckResult } from "./base.js";
 
 interface SessionMeta extends SessionCacheMeta {
   id: string;
@@ -268,7 +276,7 @@ export class CodexAgent extends BaseAgent {
     }
   }
 
-  scan(): SessionHead[] {
+  scan(options?: AgentScanOptions): SessionHead[] {
     if (!this.basePath) return [];
 
     const scanMarker = perf.start("codex:scan");
@@ -281,13 +289,13 @@ export class CodexAgent extends BaseAgent {
     const heads: SessionHead[] = [];
 
     const listMarker = perf.start("listRolloutFiles");
-    const files = this.listRolloutFiles();
+    const files = this.listRolloutFiles(options);
     perf.end(listMarker);
 
     for (const file of files) {
       try {
         const parseMarker = perf.start(`parseSessionHead:${basename(file)}`);
-        const head = this.parseSessionHead(file);
+        const head = this.parseSessionHead(file, options);
         perf.end(parseMarker);
 
         if (head) {
@@ -580,24 +588,25 @@ export class CodexAgent extends BaseAgent {
 
   // ---- File listing ----
 
-  private listRolloutFiles(): string[] {
+  private listRolloutFiles(options?: AgentScanOptions): string[] {
     if (!this.basePath) return [];
     try {
-      return this.walkDirForRolloutFiles(this.basePath);
+      return this.walkDirForRolloutFiles(this.basePath, options);
     } catch {
       return [];
     }
   }
 
-  private walkDirForRolloutFiles(dir: string): string[] {
+  private walkDirForRolloutFiles(dir: string, options?: AgentScanOptions): string[] {
     const files: string[] = [];
     try {
       for (const entry of readdirSync(dir)) {
         const fullPath = join(dir, entry);
         const stat = statSync(fullPath);
         if (stat.isDirectory()) {
-          files.push(...this.walkDirForRolloutFiles(fullPath));
+          files.push(...this.walkDirForRolloutFiles(fullPath, options));
         } else if (entry.endsWith(".jsonl") && entry.startsWith("rollout-")) {
+          if (!matchesScanWindow(stat.mtimeMs, options)) continue;
           files.push(fullPath);
         }
       }
@@ -637,7 +646,22 @@ export class CodexAgent extends BaseAgent {
 
   // ---- Session head parsing ----
 
-  private parseSessionHead(filePath: string): SessionHead | null {
+  private readFilePrefix(filePath: string, bytes = 64 * 1024): string {
+    const fd = openSync(filePath, "r");
+    try {
+      const buffer = Buffer.alloc(bytes);
+      const bytesRead = readSync(fd, buffer, 0, bytes, 0);
+      return buffer.subarray(0, bytesRead).toString("utf-8");
+    } finally {
+      closeSync(fd);
+    }
+  }
+
+  private parseSessionHead(filePath: string, options?: AgentScanOptions): SessionHead | null {
+    if (options?.fast) {
+      return this.parseFastSessionHead(filePath);
+    }
+
     const content = readFileSync(filePath, "utf-8");
     const lines = content.split("\n").filter((l) => l.trim());
     if (lines.length === 0) return null;
@@ -762,6 +786,45 @@ export class CodexAgent extends BaseAgent {
         message_count: messageCount,
         total_input_tokens: totalInputTokens,
         total_output_tokens: totalOutputTokens,
+        total_cost: 0,
+      },
+    };
+  }
+
+  private parseFastSessionHead(filePath: string): SessionHead | null {
+    const prefix = this.readFilePrefix(filePath);
+    const lines = prefix.split("\n").filter((l) => l.trim());
+    if (lines.length === 0) return null;
+
+    const sessionId = extractSessionId(filePath);
+
+    let firstRecord: Record<string, unknown>;
+    try {
+      firstRecord = JSON.parse(lines[0]!);
+    } catch {
+      return null;
+    }
+
+    const payload = (firstRecord["payload"] ?? {}) as Record<string, unknown>;
+    const stat = statSync(filePath);
+    const createdAt = parseTimestampMs(firstRecord) || parseTimestampMs(payload) || stat.mtimeMs;
+    const indexTitle = this.getTitleForSession(sessionId);
+    const messageTitle = this.extractTitleFromLines(lines);
+    const directory = payload["cwd"] ? String(payload["cwd"]) : "";
+    const directoryTitle = basenameTitle(directory || null);
+    const title = resolveSessionTitle(indexTitle, messageTitle, directoryTitle);
+
+    return {
+      id: sessionId,
+      slug: `codex/${sessionId}`,
+      title,
+      directory,
+      time_created: createdAt,
+      time_updated: stat.mtimeMs,
+      stats: {
+        message_count: 0,
+        total_input_tokens: 0,
+        total_output_tokens: 0,
         total_cost: 0,
       },
     };

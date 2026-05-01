@@ -1474,14 +1474,20 @@ export function SessionDetail({ session, highlightQuery }: SessionDetailProps) {
 
   if (visibleMessages.length === 0) {
     return (
-      <div className="mx-auto max-w-4xl rounded-sm border border-[var(--console-border)] bg-white p-6 text-sm text-[var(--console-muted)]">
+      <div
+        data-testid="session-detail"
+        className="mx-auto max-w-4xl rounded-sm border border-[var(--console-border)] bg-white p-6 text-sm text-[var(--console-muted)]"
+      >
         当前会话暂无可展示的消息内容。
       </div>
     );
   }
 
   return (
-    <div className="mx-auto w-full max-w-[1440px] space-y-8 px-2 md:px-4 animate-in fade-in slide-in-from-bottom-2 duration-300">
+    <div
+      data-testid="session-detail"
+      className="mx-auto w-full max-w-[1440px] space-y-8 px-2 md:px-4 animate-in fade-in slide-in-from-bottom-2 duration-300"
+    >
       <SessionSummarySection
         summary={typeof session.summary_files === "string" ? session.summary_files : undefined}
       />

@@ -1,7 +1,7 @@
 import { existsSync, statSync } from "node:fs";
 import { join } from "node:path";
 import { BaseAgent } from "./base.js";
-import type { SessionCacheMeta, ChangeCheckResult } from "./base.js";
+import type { AgentScanOptions, SessionCacheMeta, ChangeCheckResult } from "./base.js";
 import type { SessionHead, SessionData, Message, MessagePart } from "../types/index.js";
 import { resolveProviderRoots, firstExisting } from "../discovery/paths.js";
 import { openDbReadOnly, isSqliteAvailable, type SQLiteDatabase } from "../utils/sqlite.js";
@@ -26,14 +26,14 @@ export class OpenCodeAgent extends BaseAgent {
     return this.dbPath !== null;
   }
 
-  scan(): SessionHead[] {
+  scan(options?: AgentScanOptions): SessionHead[] {
     if (!this.dbPath) return [];
 
     const db = openDbReadOnly(this.dbPath);
     if (!db) return [];
 
     try {
-      const cutoffTime = Date.now() - 3650 * 24 * 60 * 60 * 1000;
+      const cutoffTime = options?.from ?? Date.now() - 3650 * 24 * 60 * 60 * 1000;
 
       const hasMessageTable = db
         .prepare("SELECT name FROM sqlite_master WHERE type = 'table' AND name = 'message'")
@@ -51,7 +51,7 @@ export class OpenCodeAgent extends BaseAgent {
              WHERE m.session_id = s.id AND m.data LIKE '%"modelID"%'
              ORDER BY m.time_created DESC LIMIT 1) AS model_message_data
           FROM session s
-          WHERE s.time_created >= ?
+          WHERE COALESCE(s.time_updated, s.time_created) >= ?
           ORDER BY s.time_created DESC
         `)
           .all(cutoffTime);
@@ -61,7 +61,7 @@ export class OpenCodeAgent extends BaseAgent {
           SELECT s.id, s.title, s.time_created, s.time_updated, s.slug, s.directory,
             s.version, s.summary_files, 0 AS message_count, NULL AS model_message_data
           FROM session s
-          WHERE s.time_created >= ?
+          WHERE COALESCE(s.time_updated, s.time_created) >= ?
           ORDER BY s.time_created DESC
         `)
           .all(cutoffTime);

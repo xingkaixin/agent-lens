@@ -1,12 +1,12 @@
 import { existsSync, readdirSync, readFileSync, statSync } from "node:fs";
 import { join, basename, dirname } from "node:path";
-import { BaseAgent } from "./base.js";
+import { BaseAgent, matchesScanWindow } from "./base.js";
 import type { SessionHead, SessionData, Message, MessagePart } from "../types/index.js";
 import { resolveProviderRoots, firstExisting } from "../discovery/paths.js";
 import { parseJsonlLines } from "../utils/jsonl.js";
 import { resolveSessionTitle, basenameTitle } from "../utils/title-fallback.js";
 import { perf } from "../utils/perf.js";
-import type { SessionCacheMeta, ChangeCheckResult } from "./base.js";
+import type { AgentScanOptions, SessionCacheMeta, ChangeCheckResult } from "./base.js";
 
 const RECENT_SESSION_REVALIDATION_WINDOW_MS = 24 * 60 * 60 * 1000;
 
@@ -67,7 +67,7 @@ export class ClaudeCodeAgent extends BaseAgent {
     return false;
   }
 
-  scan(): SessionHead[] {
+  scan(options?: AgentScanOptions): SessionHead[] {
     if (!this.basePath) return [];
 
     const scanMarker = perf.start("claudecode:scan");
@@ -84,6 +84,8 @@ export class ClaudeCodeAgent extends BaseAgent {
 
       for (const file of files) {
         try {
+          if (!matchesScanWindow(statSync(file).mtimeMs, options)) continue;
+
           const parseMarker = perf.start(`parseSessionHead:${basename(file)}`);
           const head = this.parseSessionHead(file, projectDir);
           perf.end(parseMarker);

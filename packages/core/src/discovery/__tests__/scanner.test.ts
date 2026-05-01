@@ -6,13 +6,14 @@ import { filterSessions } from "../scanner.js";
 // --- filterSessions tests (pure function) ---
 
 function makeSession(id: string, overrides?: Partial<SessionHead>): SessionHead {
+  const timeCreated = overrides?.time_created ?? 1000;
   return {
     id,
     slug: `agent/${id}`,
     title: `Session ${id}`,
     directory: "/home/user/project",
-    time_created: 1000,
-    time_updated: 1000,
+    time_created: timeCreated,
+    time_updated: overrides?.time_updated ?? timeCreated,
     stats: {
       message_count: 1,
       total_input_tokens: 0,
@@ -93,6 +94,15 @@ describe("filterSessions", () => {
     const result = filterSessions(sessions, { to: 200 });
     expect(result).toHaveLength(2);
     expect(result.map((s) => s.id)).toEqual(["a", "b"]);
+  });
+
+  it("filters by activity timestamp", () => {
+    const sessions = [
+      makeSession("old", { time_created: 100, time_updated: 150 }),
+      makeSession("active", { time_created: 100, time_updated: 300 }),
+    ];
+    const result = filterSessions(sessions, { from: 200 });
+    expect(result.map((s) => s.id)).toEqual(["active"]);
   });
 
   it("combines cwd and time filters", () => {

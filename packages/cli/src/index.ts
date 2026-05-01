@@ -136,7 +136,6 @@ const main = defineCommand({
     }
     const listDefaultTo = args.to ? parseDateToTimestamp(args.to as string) : undefined;
 
-    // Build scan options (no time slicing — Dashboard needs full history)
     const scanOptions: ScanOptions = {
       agents: targetSession
         ? [targetSession.agent]
@@ -146,8 +145,10 @@ const main = defineCommand({
       cwd: cwdFilter,
       useCache: useCache,
     };
+    const startupScanOptions =
+      targetSession || jsonOnly ? {} : { from: listDefaultFrom, to: listDefaultTo };
 
-    const store = new LiveScanStore(!jsonOnly, scanOptions);
+    const store = new LiveScanStore(!jsonOnly, scanOptions, startupScanOptions);
     await store.initialize();
     const result = store.getSnapshot();
 

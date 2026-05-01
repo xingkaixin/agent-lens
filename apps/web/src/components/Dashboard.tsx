@@ -721,7 +721,7 @@ export function Dashboard({
   } = data;
 
   return (
-    <div className="mx-auto max-w-5xl space-y-4">
+    <div data-testid="dashboard" className="mx-auto max-w-5xl space-y-4">
       <div className="grid gap-3 md:grid-cols-4">
         <StatCard label="Total Sessions" value={formatNumber(totals.sessions)} />
         <StatCard label="Total Messages" value={formatNumber(totals.messages)} />

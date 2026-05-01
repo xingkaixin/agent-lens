@@ -11,14 +11,20 @@ export interface ScanOptions {
   agents?: string[];
   /** Filter to sessions from a specific project identity or directory scope */
   cwd?: string;
-  /** Only include sessions created after this timestamp (ms) */
+  /** Only include sessions active after this timestamp (ms) */
   from?: number;
-  /** Only include sessions created before this timestamp (ms) */
+  /** Only include sessions active before this timestamp (ms) */
   to?: number;
   /** Use cached scan results if available */
   useCache?: boolean;
   /** Enable smart refresh (fast cache + background incremental scan) */
   smartRefresh?: boolean;
+  /** Persist scan results to the SQLite cache */
+  writeCache?: boolean;
+  /** Classify sessions by reading full conversation content */
+  includeSmartTags?: boolean;
+  /** Prefer lightweight metadata over complete statistics when the UI needs a fast first paint */
+  fast?: boolean;
 }
 
 export interface ScanResult {
@@ -92,11 +98,11 @@ export function filterSessions(sessions: SessionHead[], options: ScanOptions): S
   }
 
   if (options.from != null) {
-    result = result.filter((s) => s.time_created >= options.from!);
+    result = result.filter((s) => (s.time_updated ?? s.time_created) >= options.from!);
   }
 
   if (options.to != null) {
-    result = result.filter((s) => s.time_created <= options.to!);
+    result = result.filter((s) => (s.time_updated ?? s.time_created) <= options.to!);
   }
 
   return result;
@@ -207,9 +213,15 @@ async function scanAgentSmart(
           const updatedSessions = await Promise.resolve(
             agent.incrementalScan!(cached.sessions, checkResult.changedIds || []),
           );
-          const tagged = ensureSessionTags(agent, attachProjectIdentities(updatedSessions));
+          const sessionsWithIdentity = attachProjectIdentities(updatedSessions);
+          const tagged =
+            options.includeSmartTags === false
+              ? { sessions: sessionsWithIdentity, changed: false }
+              : ensureSessionTags(agent, sessionsWithIdentity);
 
-          saveCachedSessions(agent.name, tagged.sessions, buildAgentCacheMeta(agent));
+          if (options.writeCache !== false && options.from == null && options.to == null) {
+            saveCachedSessions(agent.name, tagged.sessions, buildAgentCacheMeta(agent));
+          }
 
           onProgress?.({
             agent: agent.name,
@@ -225,8 +237,16 @@ async function scanAgentSmart(
       }
 
       const cachedWithIdentity = attachProjectIdentities(cached.sessions);
-      const tagged = ensureSessionTags(agent, cachedWithIdentity);
-      if (tagged.changed) {
+      const tagged =
+        options.includeSmartTags === false
+          ? { sessions: cachedWithIdentity, changed: false }
+          : ensureSessionTags(agent, cachedWithIdentity);
+      if (
+        tagged.changed &&
+        options.writeCache !== false &&
+        options.from == null &&
+        options.to == null
+      ) {
         saveCachedSessions(agent.name, tagged.sessions, buildAgentCacheMeta(agent));
       }
 
@@ -257,16 +277,21 @@ async function scanAgentFull(
 
   try {
     const scanMarker = perf.start(`agent:${agent.name}:scan`);
-    const heads = agent.scan();
+    const heads = agent.scan({ from: options.from, to: options.to, fast: options.fast });
     perf.end(scanMarker);
     const headsWithIdentity = attachProjectIdentities(heads);
-    const tagged = ensureSessionTags(agent, headsWithIdentity);
+    const tagged =
+      options.includeSmartTags === false
+        ? { sessions: headsWithIdentity, changed: false }
+        : ensureSessionTags(agent, headsWithIdentity);
 
     // 收集元数据
     const meta = buildAgentCacheMeta(agent);
 
     // 保存到缓存
-    saveCachedSessions(agent.name, tagged.sessions, meta);
+    if (options.writeCache !== false && options.from == null && options.to == null) {
+      saveCachedSessions(agent.name, tagged.sessions, meta);
+    }
 
     onProgress?.({ agent: agent.name, phase: "complete", newCount: tagged.sessions.length });
 

@@ -50,7 +50,11 @@ export const serveCommand = defineCommand({
     };
     const listDefaultFrom = args.from ? new Date(args.from as string).getTime() : undefined;
     const listDefaultTo = args.to ? new Date(args.to as string).getTime() : undefined;
-    const store = new LiveScanStore(!jsonOnly, scanOptions);
+    const store = new LiveScanStore(
+      !jsonOnly,
+      scanOptions,
+      jsonOnly ? {} : { from: listDefaultFrom, to: listDefaultTo },
+    );
 
     await store.initialize();
     const result = store.getSnapshot();

@@ -1,7 +1,7 @@
 import { existsSync, readdirSync, readFileSync, statSync } from "node:fs";
 import { join, normalize } from "node:path";
-import { BaseAgent } from "./base.js";
-import type { SessionCacheMeta, ChangeCheckResult } from "./base.js";
+import { BaseAgent, matchesScanWindow } from "./base.js";
+import type { AgentScanOptions, SessionCacheMeta, ChangeCheckResult } from "./base.js";
 import type { SessionHead, SessionData, Message, MessagePart } from "../types/index.js";
 import { getCursorDataPath } from "../discovery/paths.js";
 import { openDbReadOnly, isSqliteAvailable, type SQLiteDatabase } from "../utils/sqlite.js";
@@ -351,7 +351,7 @@ export class CursorAgent extends BaseAgent {
     return this.dbPath !== null && existsSync(this.dbPath);
   }
 
-  scan(): SessionHead[] {
+  scan(options?: AgentScanOptions): SessionHead[] {
     if (!this.dbPath) return [];
 
     const scanMarker = perf.start("cursor:scan");
@@ -380,14 +380,42 @@ export class CursorAgent extends BaseAgent {
           if (!composer.id && !composer.composerId) continue;
 
           const composerId = composer.id || composer.composerId || "";
+          const createdAt = composer.createdAt ?? 0;
+          const updatedAt =
+            composer.updatedAt ?? composer.lastUpdatedAt ?? composer.lastSendTime ?? createdAt;
+          if (!matchesScanWindow(updatedAt, options)) continue;
+
+          const title = this.extractTitle(composer);
+          const fastMessageCount = composer.chatMessages?.length ?? 0;
+          const hasSubagents =
+            Array.isArray(composer.subagentInfos) && composer.subagentInfos.length > 0;
+          if (options?.fast) {
+            const directory = workspacePathMap.get(composerId) ?? "";
+            heads.push({
+              id: composerId,
+              slug: `cursor/${composerId}`,
+              title,
+              directory,
+              time_created: createdAt,
+              time_updated: updatedAt || undefined,
+              stats: {
+                message_count: fastMessageCount,
+                total_input_tokens: composer.inputTokenCount ?? 0,
+                total_output_tokens: composer.outputTokenCount ?? 0,
+                total_cost: 0,
+              },
+            });
+            this.composerCache.set(composerId, composer);
+            this.sessionMetaMap.set(composerId, {
+              id: composerId,
+              sourcePath: this.dbPath || "",
+            });
+            continue;
+          }
 
           // Try to extract requestId from bubbles (like agent-dump does)
           const requestId = this.extractRequestIdFromBubbles(db, composerId);
           const sessionId = requestId || composerId;
-
-          const title = this.extractTitle(composer);
-          const createdAt = composer.createdAt ?? 0;
-          const updatedAt = composer.updatedAt ?? createdAt;
 
           // Load actual messages to filter out empty composers
           const messages = this.loadMessagesFromBubbles(
@@ -396,8 +424,6 @@ export class CursorAgent extends BaseAgent {
             sessionId,
             composer.modelConfig?.modelName ?? composer.model ?? null,
           );
-          const hasSubagents =
-            Array.isArray(composer.subagentInfos) && composer.subagentInfos.length > 0;
           if (messages.length === 0 && !hasSubagents) {
             continue; // Skip empty sessions
           }
