@@ -549,7 +549,7 @@ export default function App() {
     }
 
     if (viewState.mode === "agent") {
-      setSelectedSidebarSessionId((current) => current ?? sidebarSessions[0]?.id ?? null);
+      setSelectedSidebarSessionId(null);
       return;
     }
 
@@ -1135,8 +1135,6 @@ export default function App() {
                     setSelectedSidebarSessionId(sessionId);
                     navigate(`/${activeAgentKey}/${sessionId}`);
                   }}
-                  isBookmarked={(sessionId) => isSessionBookmarked(activeAgentKey, sessionId)}
-                  onToggleBookmark={(session) => toggleSessionBookmark(session, activeAgentKey)}
                 />
               )}
             </section>
