@@ -1,5 +1,6 @@
 import { useLayoutEffect, useMemo, useRef } from "react";
 import type { SessionData } from "../lib/api";
+import { SMART_TAG_LABELS } from "./SmartTagChips";
 import type { SessionDetailToc } from "./session-detail/toc";
 
 interface InteractiveReceiptProps {
@@ -13,6 +14,7 @@ interface ReceiptPayload {
   agent: string;
   directory: string;
   updatedAt: number;
+  tags?: SessionData["smart_tags"];
   stats: SessionData["stats"];
   items: ReceiptLineItem[];
 }
@@ -138,6 +140,11 @@ function buildReceiptItems(toc: SessionDetailToc): ReceiptLineItem[] {
   return [...baseItems, ...visibleToolItems].slice(0, maxItems);
 }
 
+function formatReceiptSubtitle(tags?: SessionData["smart_tags"]) {
+  if (!tags || tags.length === 0) return "SESSION ACTIVITY RECEIPT";
+  return tags.map((tag) => SMART_TAG_LABELS[tag]).join(" / ");
+}
+
 function createReceiptPayload(session: SessionData, toc: SessionDetailToc): ReceiptPayload {
   const agent = session.slug?.split("/")[0] || "codesesh";
   return {
@@ -146,6 +153,7 @@ function createReceiptPayload(session: SessionData, toc: SessionDetailToc): Rece
     agent,
     directory: session.directory,
     updatedAt: session.time_updated ?? session.time_created,
+    tags: session.smart_tags,
     stats: session.stats,
     items: buildReceiptItems(toc),
   };
@@ -237,7 +245,11 @@ function drawTexture(payload: ReceiptPayload) {
   ctx.textAlign = "center";
   ctx.fillText("CODESESH MART", RECEIPT_WIDTH / 2, 34);
   ctx.font = "11px 'Courier New', monospace";
-  ctx.fillText("THERMAL PAPER DEBUG COUNTER", RECEIPT_WIDTH / 2, 51);
+  ctx.fillText(
+    fitText(ctx, formatReceiptSubtitle(payload.tags).toUpperCase(), RECEIPT_WIDTH - 36),
+    RECEIPT_WIDTH / 2,
+    51,
+  );
 
   ctx.strokeStyle = "rgba(0, 0, 0, 0.5)";
   ctx.lineWidth = 1;
