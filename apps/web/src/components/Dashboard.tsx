@@ -295,9 +295,13 @@ const MODEL_COLORS = [
 ];
 
 function ModelDistribution({ entries }: { entries: ModelDistributionEntry[] }) {
-  const totalTokens = useMemo(() => entries.reduce((sum, e) => sum + e.tokens, 0), [entries]);
+  const visibleEntries = useMemo(() => entries.filter((entry) => entry.tokens > 0), [entries]);
+  const totalTokens = useMemo(
+    () => visibleEntries.reduce((sum, e) => sum + e.tokens, 0),
+    [visibleEntries],
+  );
 
-  if (entries.length === 0 || totalTokens === 0) {
+  if (visibleEntries.length === 0 || totalTokens === 0) {
     return (
       <div className="rounded-sm border border-[var(--console-border)] bg-white p-4 text-sm text-[var(--console-muted)]">
         No model data yet
@@ -305,7 +309,7 @@ function ModelDistribution({ entries }: { entries: ModelDistributionEntry[] }) {
     );
   }
 
-  const chartData = entries.map((entry, i) => ({
+  const chartData = visibleEntries.map((entry, i) => ({
     ...entry,
     chartKey: `model${i}`,
     fraction: entry.tokens / totalTokens,
@@ -327,7 +331,7 @@ function ModelDistribution({ entries }: { entries: ModelDistributionEntry[] }) {
           Model Distribution
         </h3>
         <span className="console-mono text-[11px] text-[var(--console-muted)]">
-          {entries.length} models
+          {visibleEntries.length} models
         </span>
       </div>
 

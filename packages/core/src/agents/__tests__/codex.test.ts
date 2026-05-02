@@ -178,4 +178,56 @@ describe("CodexAgent cache refresh", () => {
     expect(head?.time_created).toBe(new Date("2026-04-20T10:00:00Z").getTime());
     expect(head?.time_updated).toBe(new Date("2026-04-20T10:02:30Z").getTime());
   });
+
+  it("aggregates model usage from token count events", () => {
+    const tempDir = mkdtempSync(join(tmpdir(), "codesesh-codex-test-"));
+    const sessionFile = join(
+      tempDir,
+      "rollout-2026-04-20T10-00-00-019daaaa-aaaa-7aaa-aaaa-aaaaaaaaaaaa.jsonl",
+    );
+
+    writeFileSync(
+      sessionFile,
+      [
+        '{"timestamp":"2026-04-20T10:00:00Z","type":"session_meta","payload":{"cwd":"/tmp/project","model":"gpt-5.5"}}',
+        '{"timestamp":"2026-04-20T10:01:00Z","type":"event_msg","payload":{"type":"token_count","info":{"last_token_usage":{"input_tokens":100,"output_tokens":20,"reasoning_output_tokens":5},"total_token_usage":{"total_tokens":125}}}}',
+        "",
+      ].join("\n"),
+    );
+
+    const agent = new CodexAgent() as any;
+    agent.sessionIndexCache = new Map();
+
+    const head = agent.parseSessionHead(sessionFile);
+
+    expect(head?.stats.total_input_tokens).toBe(100);
+    expect(head?.stats.total_output_tokens).toBe(25);
+    expect(head?.model_usage).toEqual({ "gpt-5.5": 125 });
+  });
+
+  it("updates model usage when the active Codex model changes", () => {
+    const tempDir = mkdtempSync(join(tmpdir(), "codesesh-codex-test-"));
+    const sessionFile = join(
+      tempDir,
+      "rollout-2026-04-20T10-00-00-019daaaa-aaaa-7aaa-aaaa-aaaaaaaaaaaa.jsonl",
+    );
+
+    writeFileSync(
+      sessionFile,
+      [
+        '{"timestamp":"2026-04-20T10:00:00Z","type":"session_meta","payload":{"cwd":"/tmp/project","model":"gpt-5.5"}}',
+        '{"timestamp":"2026-04-20T10:01:00Z","type":"event_msg","payload":{"type":"token_count","info":{"last_token_usage":{"input_tokens":100,"output_tokens":20},"total_token_usage":{"total_tokens":120}}}}',
+        '{"timestamp":"2026-04-20T10:02:00Z","type":"response_item","payload":{"type":"message","role":"assistant","model":"gpt-5.4","content":[{"type":"output_text","text":"hello"}]}}',
+        '{"timestamp":"2026-04-20T10:03:00Z","type":"event_msg","payload":{"type":"token_count","info":{"last_token_usage":{"input_tokens":40,"output_tokens":10},"total_token_usage":{"total_tokens":170}}}}',
+        "",
+      ].join("\n"),
+    );
+
+    const agent = new CodexAgent() as any;
+    agent.sessionIndexCache = new Map();
+
+    const head = agent.parseSessionHead(sessionFile);
+
+    expect(head?.model_usage).toEqual({ "gpt-5.5": 120, "gpt-5.4": 50 });
+  });
 });

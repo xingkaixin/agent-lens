@@ -1,4 +1,4 @@
-import { describe, it, expect, vi } from "vitest";
+import { afterEach, describe, it, expect, vi } from "vitest";
 import {
   handleGetAgents,
   handleGetConfig,
@@ -97,6 +97,10 @@ function makeScanSource(overrides?: Partial<ScanResult>): ScanResultSource {
 }
 
 // --- Tests ---
+
+afterEach(() => {
+  vi.useRealTimers();
+});
 
 describe("handleGetAgents", () => {
   it("returns agent info list", () => {
@@ -405,6 +409,44 @@ describe("handleGetDashboard", () => {
     );
     expect(todayBucket?.sessions).toBe(1);
     expect(todayBucket?.messages).toBe(7);
+  });
+
+  it("uses the server default rolling window for dashboard totals", () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date("2026-05-02T12:00:00Z"));
+
+    const now = Date.now();
+    const yesterdayInRollingWindow = makeSession("yesterday-active", {
+      time_created: new Date("2026-05-01T18:00:00Z").getTime(),
+      time_updated: new Date("2026-05-01T18:00:00Z").getTime(),
+    });
+    const todayActive = makeSession("today-active", {
+      time_created: new Date("2026-05-02T08:00:00Z").getTime(),
+      time_updated: new Date("2026-05-02T08:00:00Z").getTime(),
+    });
+    const stale = makeSession("stale", {
+      time_created: new Date("2026-05-01T08:00:00Z").getTime(),
+      time_updated: new Date("2026-05-01T08:00:00Z").getTime(),
+    });
+
+    const c = makeMockContext();
+    handleGetDashboard(
+      c,
+      makeScanSource({
+        sessions: [yesterdayInRollingWindow, todayActive, stale],
+        byAgent: { claudecode: [yesterdayInRollingWindow, todayActive, stale] },
+      }),
+      { from: now - 86400000, days: 1 },
+    );
+
+    const response = c.json.mock.calls[0]![0];
+    expect(response.totals.sessions).toBe(2);
+    expect(
+      response.dailyActivity.reduce(
+        (sum: number, bucket: { sessions: number }) => sum + bucket.sessions,
+        0,
+      ),
+    ).toBe(2);
   });
 });
 

@@ -691,6 +691,8 @@ export class CodexAgent extends BaseAgent {
     let updatedAt = createdAt;
     let messageCount = 0;
     let model: string | null = null;
+    let activeModel: string | null = null;
+    const modelUsageMap: Record<string, number> = {};
     let totalInputTokens = 0;
     let totalOutputTokens = 0;
 
@@ -712,8 +714,10 @@ export class CodexAgent extends BaseAgent {
 
         if (recordType === "session_meta" || recordType === "turn_context") {
           const payload = (data["payload"] ?? {}) as Record<string, unknown>;
-          if (!model) {
-            model = extractModelName(payload["model"]);
+          const nextModel = extractModelName(payload["model"]);
+          if (nextModel) {
+            activeModel = nextModel;
+            model ??= nextModel;
           }
           continue;
         }
@@ -725,10 +729,11 @@ export class CodexAgent extends BaseAgent {
             messageCount++;
           }
           // Extract model from response_item
-          if (!model) {
-            const info = p["info"] as Record<string, unknown> | undefined;
-            const m = info?.["model"] ?? p["model"];
-            if (typeof m === "string" && m.trim()) model = m.trim();
+          const info = p["info"] as Record<string, unknown> | undefined;
+          const m = info?.["model"] ?? p["model"];
+          if (typeof m === "string" && m.trim()) {
+            activeModel = m.trim();
+            model ??= activeModel;
           }
         }
 
@@ -765,6 +770,10 @@ export class CodexAgent extends BaseAgent {
               const totalInput = Math.max(0, inputTokens);
               totalInputTokens += totalInput;
               totalOutputTokens += outputTokens + reasoningTokens;
+              const totalForModel = totalInput + outputTokens + reasoningTokens;
+              if (activeModel && totalForModel > 0) {
+                modelUsageMap[activeModel] = (modelUsageMap[activeModel] ?? 0) + totalForModel;
+              }
             }
           }
         }
@@ -788,6 +797,7 @@ export class CodexAgent extends BaseAgent {
         total_output_tokens: totalOutputTokens,
         total_cost: 0,
       },
+      model_usage: Object.keys(modelUsageMap).length > 0 ? modelUsageMap : undefined,
     };
   }
 

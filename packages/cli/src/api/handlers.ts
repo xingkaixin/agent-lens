@@ -467,10 +467,8 @@ function resolveDashboardWindow(
   queryTo: string | undefined,
 ): { from: number; to: number; days: number } {
   const now = Date.now();
-  const todayStart = startOfLocalDay(now);
 
-  // Query "to" wins over defaults, then "now" end-of-today as fallback
-  const toTs = parseDateParam(queryTo, defaults.to) ?? todayStart + 24 * 60 * 60 * 1000 - 1;
+  const toTs = parseDateParam(queryTo, defaults.to) ?? now;
 
   // Resolve days (preferred): query, defaults.days, or derive from defaults.from
   const parsedDays = queryDays ? parseInt(queryDays, 10) : NaN;
@@ -480,16 +478,16 @@ function resolveDashboardWindow(
   const fromFromQuery = parseDateParam(queryFrom, undefined);
   let fromTs: number;
   if (fromFromQuery != null) {
-    fromTs = startOfLocalDay(fromFromQuery);
-    days ??= Math.max(1, Math.ceil((todayStart - fromTs) / 86400000) + 1);
-  } else if (days && days > 0) {
-    fromTs = todayStart - (days - 1) * 86400000;
+    fromTs = fromFromQuery;
+    days ??= Math.max(1, Math.ceil((toTs - fromTs) / 86400000));
   } else if (defaults.from != null) {
-    fromTs = startOfLocalDay(defaults.from);
-    days = Math.max(1, Math.ceil((todayStart - fromTs) / 86400000) + 1);
+    fromTs = defaults.from;
+    days ??= Math.max(1, Math.ceil((toTs - fromTs) / 86400000));
+  } else if (days && days > 0) {
+    fromTs = startOfLocalDay(toTs) - (days - 1) * 86400000;
   } else {
     days = 30;
-    fromTs = todayStart - (days - 1) * 86400000;
+    fromTs = startOfLocalDay(toTs) - (days - 1) * 86400000;
   }
 
   return { from: fromTs, to: toTs, days };
@@ -558,7 +556,8 @@ export function handleGetDashboard(
   const dailyMap = new Map<string, DashboardDailyBucket>();
   const dailyTokenMap = new Map<string, DailyTokenBucket>();
   const bucketStart = startOfLocalDay(from);
-  for (let i = 0; i < days; i += 1) {
+  const bucketDays = Math.floor((startOfLocalDay(to) - bucketStart) / 86400000) + 1;
+  for (let i = 0; i < bucketDays; i += 1) {
     const ts = bucketStart + i * 86400000;
     const key = toLocalDateKey(ts);
     dailyMap.set(key, { date: key, sessions: 0, messages: 0 });

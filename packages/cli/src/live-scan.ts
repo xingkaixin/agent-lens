@@ -201,10 +201,6 @@ export class LiveScanStore {
         this.startupScanOptions.from != null || this.startupScanOptions.to != null
           ? false
           : undefined,
-      fast:
-        this.startupScanOptions.from != null || this.startupScanOptions.to != null
-          ? true
-          : undefined,
     });
     this.applyScanResult(initialResult);
     appLogger.info("scan.initial.done", {
@@ -420,12 +416,7 @@ export class LiveScanStore {
         agent.incrementalScan(previousSessions, checkResult.changedIds ?? []),
       );
     } else {
-      nextSessions = await Promise.resolve(
-        agent.scan({
-          ...this.startupScanOptions,
-          fast: this.hasStartupWindow() ? true : undefined,
-        }),
-      );
+      nextSessions = await Promise.resolve(agent.scan(this.startupScanOptions));
       this.refreshTimestamps.set(agentName, Date.now());
     }
 
