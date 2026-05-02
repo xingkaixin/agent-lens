@@ -18,6 +18,7 @@ import {
   Bookmark,
   ListTree,
   Keyboard,
+  Tags,
   type LucideIcon,
 } from "lucide-react";
 
@@ -31,7 +32,7 @@ const productScenes: ProductScene[] = [
   {
     image: "/demo/dashboard.png",
     title: "Dashboard",
-    description: "Track cross-agent activity, token trends, and bookmarked sessions at a glance.",
+    description: "Track cross-agent activity, token trends, smart tags, and bookmarked sessions.",
   },
   {
     image: "/demo/search.png",
@@ -105,7 +106,8 @@ export function Hero() {
         </h1>
         <p className="mx-auto mt-5 max-w-md text-sm leading-relaxed text-[var(--console-muted)]">
           CodeSesh finds sessions across tools and directories, then turns them into a live
-          dashboard, full-text search, and a replayable history backed by local SQLite storage.
+          dashboard, project-aware session tree, smart tags, and replayable history backed by local
+          SQLite storage.
         </p>
 
         <ProductShowcase />
@@ -158,7 +160,7 @@ export function Hero() {
             </pre>
           </div>
           <p className="console-mono mt-3 text-center text-xs text-[var(--console-accent)]">
-            Requires Node.js 18+ · Works with pnpm, npm, or bun
+            Requires Node.js 18+ · Runs locally from your terminal
           </p>
         </div>
       </div>
@@ -197,61 +199,61 @@ export function ProductShowcase() {
     <>
       <section className="mt-12">
         <div className="mx-auto max-w-6xl">
-        <div className="mx-auto max-w-2xl text-center">
-          <p className="console-mono text-xs font-bold uppercase tracking-[0.16em] text-[var(--console-muted)]">
-            Product Tour
-          </p>
-          <h2 className="console-mono mt-3 text-2xl font-bold tracking-tight text-[var(--console-accent-strong)] md:text-3xl">
-            What the product looks like in use
-          </h2>
-          <p className="mt-4 text-sm leading-relaxed text-[var(--console-muted)]">
-            These product shots preview the dashboard, search flow, session detail view, and
-            keyboard shortcuts before installation.
-          </p>
-        </div>
-
-        <div className="product-marquee-shell mt-8">
-          <div className="product-marquee-track">
-            {marqueeScenes.map((scene, index) => (
-              <article
-                key={`${scene.title}-${index}`}
-                className="product-scene-card group relative w-[min(78vw,34rem)] shrink-0 overflow-hidden rounded-[1.25rem] border border-[var(--console-border)] bg-white text-left shadow-[0_20px_60px_rgba(15,23,42,0.08)]"
-              >
-                <div className="border-b border-[var(--console-border)] bg-[linear-gradient(180deg,rgba(255,255,255,0.98),rgba(245,245,245,0.98))] px-5 py-4">
-                  <div>
-                    <p className="console-mono text-[11px] font-semibold uppercase tracking-[0.16em] text-[var(--console-muted)]">
-                      {scene.title}
-                    </p>
-                    <p className="mt-2 text-sm leading-6 text-[var(--console-text)]">
-                      {scene.description}
-                    </p>
-                  </div>
-                </div>
-
-                <div className="bg-[radial-gradient(circle_at_top,#ffffff,rgba(247,247,247,0.92)_55%,rgba(238,238,238,0.98))] p-4">
-                  <div className="overflow-hidden rounded-[1rem] border border-[var(--console-border)] bg-[#f8f8f8] shadow-[0_12px_40px_rgba(15,23,42,0.08)]">
-                    <img
-                      src={scene.image}
-                      alt={`${scene.title} demo`}
-                      className="aspect-[1586/992] h-auto w-full object-cover object-top"
-                      loading="lazy"
-                    />
-                  </div>
-                </div>
-
-                <button
-                  type="button"
-                  onClick={() => openScene(index % productScenes.length)}
-                  className="absolute right-6 bottom-6 inline-flex items-center gap-2 rounded-full border border-white/70 bg-white/92 px-3 py-2 text-xs font-medium text-[var(--console-text)] opacity-0 shadow-lg transition-all duration-200 group-hover:opacity-100 group-focus-within:opacity-100 hover:scale-[1.02]"
-                  aria-label={`Expand ${scene.title}`}
-                >
-                  <Expand className="size-3.5" />
-                  Expand
-                </button>
-              </article>
-            ))}
+          <div className="mx-auto max-w-2xl text-center">
+            <p className="console-mono text-xs font-bold uppercase tracking-[0.16em] text-[var(--console-muted)]">
+              Product Tour
+            </p>
+            <h2 className="console-mono mt-3 text-2xl font-bold tracking-tight text-[var(--console-accent-strong)] md:text-3xl">
+              What the product looks like in use
+            </h2>
+            <p className="mt-4 text-sm leading-relaxed text-[var(--console-muted)]">
+              These product shots preview the dashboard, search flow, session detail view, and
+              keyboard shortcuts before installation.
+            </p>
           </div>
-        </div>
+
+          <div className="product-marquee-shell mt-8">
+            <div className="product-marquee-track">
+              {marqueeScenes.map((scene, index) => (
+                <article
+                  key={`${scene.title}-${index}`}
+                  className="product-scene-card group relative w-[min(78vw,34rem)] shrink-0 overflow-hidden rounded-[1.25rem] border border-[var(--console-border)] bg-white text-left shadow-[0_20px_60px_rgba(15,23,42,0.08)]"
+                >
+                  <div className="border-b border-[var(--console-border)] bg-[linear-gradient(180deg,rgba(255,255,255,0.98),rgba(245,245,245,0.98))] px-5 py-4">
+                    <div>
+                      <p className="console-mono text-[11px] font-semibold uppercase tracking-[0.16em] text-[var(--console-muted)]">
+                        {scene.title}
+                      </p>
+                      <p className="mt-2 text-sm leading-6 text-[var(--console-text)]">
+                        {scene.description}
+                      </p>
+                    </div>
+                  </div>
+
+                  <div className="bg-[radial-gradient(circle_at_top,#ffffff,rgba(247,247,247,0.92)_55%,rgba(238,238,238,0.98))] p-4">
+                    <div className="overflow-hidden rounded-[1rem] border border-[var(--console-border)] bg-[#f8f8f8] shadow-[0_12px_40px_rgba(15,23,42,0.08)]">
+                      <img
+                        src={scene.image}
+                        alt={`${scene.title} demo`}
+                        className="aspect-[1586/992] h-auto w-full object-cover object-top"
+                        loading="lazy"
+                      />
+                    </div>
+                  </div>
+
+                  <button
+                    type="button"
+                    onClick={() => openScene(index % productScenes.length)}
+                    className="absolute right-6 bottom-6 inline-flex items-center gap-2 rounded-full border border-white/70 bg-white/92 px-3 py-2 text-xs font-medium text-[var(--console-text)] opacity-0 shadow-lg transition-all duration-200 group-hover:opacity-100 group-focus-within:opacity-100 hover:scale-[1.02]"
+                    aria-label={`Expand ${scene.title}`}
+                  >
+                    <Expand className="size-3.5" />
+                    Expand
+                  </button>
+                </article>
+              ))}
+            </div>
+          </div>
         </div>
       </section>
 
@@ -335,7 +337,18 @@ const features: FeatureItem[] = [
   {
     icon: BarChart3,
     title: "Dashboard & Activity Trends",
-    description: "Track activity, tokens, models, bookmarks, and recent sessions at a glance.",
+    description: "Track activity, tokens, models, smart tags, bookmarks, and recent sessions.",
+  },
+  {
+    icon: ListTree,
+    title: "Project-Aware Session Tree",
+    description: "Group sessions by repository or project identity across supported agents.",
+  },
+  {
+    icon: Tags,
+    title: "Smart Tags",
+    description:
+      "Label bugfix, refactor, feature, testing, docs, planning, git, build, and exploration work.",
   },
   {
     icon: Bookmark,
@@ -375,7 +388,7 @@ const features: FeatureItem[] = [
   {
     icon: BarChart3,
     title: "Cost & Token Visibility",
-    description: "See token totals, cache tokens, model usage, and session cost.",
+    description: "See token totals, cache tokens, recorded costs, and model-based estimates.",
   },
   {
     icon: Database,
@@ -390,7 +403,7 @@ const features: FeatureItem[] = [
   {
     icon: Shield,
     title: "100% Local & Private",
-    description: "Nothing leaves your machine. No accounts, no cloud sync, no telemetry.",
+    description: "Your data stays on your machine. No accounts, no cloud sync, no cloud telemetry.",
   },
 ];
 
@@ -448,7 +461,14 @@ export function Agents() {
               key={a.name}
               className="flex w-full max-w-[160px] flex-col items-center gap-2 rounded-sm border border-[var(--console-border)] bg-white px-4 py-5"
             >
-              <img src={a.icon} alt={a.name} className="size-8 object-contain" width="32" height="32" loading="lazy" />
+              <img
+                src={a.icon}
+                alt={a.name}
+                className="size-8 object-contain"
+                width="32"
+                height="32"
+                loading="lazy"
+              />
               <span className="console-mono text-xs font-semibold text-[var(--console-text)]">
                 {a.name}
               </span>

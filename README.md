@@ -18,15 +18,17 @@ CodeSesh believes your session history belongs to **you** — and you deserve to
 
 - **Unified Timeline** — Browse sessions across all your AI agents in a single, searchable interface
 - **Full-Text Search** — Search across session titles and conversation content with highlighted matches
-- **Dashboard & Activity Trends** — Track daily activity, agent distribution, recent sessions, latest activity, token usage, and model usage at a glance
+- **Dashboard & Activity Trends** — Track daily activity, agent distribution, recent sessions, latest activity, token usage, model usage, smart tags, and cost at a glance
+- **Project-Aware Session Tree** — Group sessions by repository or project identity across every supported agent
+- **Smart Tags** — Automatically label sessions such as bugfix, refactoring, feature work, testing, docs, planning, git operations, build/deploy, and exploration
 - **Bookmarks** — Save important sessions and keep them visible from the dashboard
 - **Full Conversation Replay** — Read every message, tool call, and reasoning step exactly as it happened
 - **File Change Tracking** — Jump from the session detail table of contents to files that were read, edited, created, deleted, or moved
 - **Keyboard Navigation** — Move through views, focus search, and open shortcuts without leaving the keyboard
-- **Cost & Token Visibility** — See exactly how many tokens and dollars each session consumed
+- **Cost & Token Visibility** — See token totals, cache tokens, recorded costs, and model-based cost estimates
 - **SQLite-Backed Cache & Search Index** — Restore session lists quickly and reuse the same local store for search
 - **Zero Configuration** — Just run it. CodeSesh auto-discovers everything on your filesystem
-- **100% Local & Private** — Nothing leaves your machine. No accounts, no cloud sync, no telemetry
+- **100% Local & Private** — Your data stays on your machine. No accounts, no cloud sync, no cloud telemetry
 - **Live Refresh** — File changes are picked up automatically, and the UI stays in sync without a restart
 
 ---
@@ -49,27 +51,30 @@ More agents coming soon. Adding a new one is [a single file](#extending).
 
 ### Prerequisites
 
-- Node.js 18+
-- pnpm 10+
+- Node.js 18+ for the published CLI
+- Node.js 20.19+ and pnpm 10+ for building from source
 
 ### Install & Run
 
 ```bash
-# Clone the repo
+# Run the published CLI
+npx codesesh
+```
+
+Your browser will open at `http://localhost:4321` with all your sessions ready to browse.
+
+### Build from Source
+
+```bash
 git clone https://github.com/xingkaixin/codesesh.git
 cd codesesh
 
-# Install dependencies
 pnpm install
-
-# Build all packages
 pnpm build
-
-# Launch — scans sessions and opens your browser
-npx codesesh serve
+pnpm serve
 ```
 
-That's it. Your browser will open at `http://localhost:4321` with all your sessions ready to browse.
+The local server uses `packages/cli/dist/index.js` and opens the same Web UI.
 
 ---
 
@@ -168,12 +173,12 @@ npx codesesh -j
 
 Once CodeSesh is running, here's what you'll find:
 
-1. **Dashboard** — Start from a summary view with total sessions, total messages, total tokens, latest activity, daily activity, agent distribution, model distribution, token trends, bookmarks, and recent sessions.
+1. **Dashboard** — Start from a summary view with total sessions, total messages, total tokens, latest activity, daily activity, agent distribution, model distribution, token trends, smart tags, bookmarks, and recent sessions.
 2. **Search** — Query session titles and conversation text from the top bar, then jump into highlighted matches.
-3. **Agent Sidebar** — A panel listing all detected agents with session counts. Click any agent to filter the view.
+3. **Session Tree Sidebar** — Browse sessions grouped by project identity and filter by agent or smart tag.
 4. **Session List** — Browse your sessions sorted by most recent. Each card shows the session title, working directory, message count, and total cost at a glance.
-5. **Bookmarks** — Pin sessions you want to revisit and manage them from the dashboard or session views.
-6. **Session Detail** — Click any session to open a full replay. You'll see every user message, assistant response, tool invocation, reasoning step, model label, and tracked file change exactly as it unfolded.
+5. **Smart Tags & Bookmarks** — Spot session intent quickly, pin sessions you want to revisit, and manage them from the dashboard or session views.
+6. **Session Detail** — Click any session to open a full replay with a receipt-style summary, user messages, assistant responses, tool invocations, reasoning steps, model labels, and tracked file changes.
 7. **Keyboard Shortcuts** — Use the shortcuts panel to navigate sessions, focus search, and move between grouped content faster.
 8. **Live Updates** — New or changed local sessions are reflected automatically while the server is running.
 

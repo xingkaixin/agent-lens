@@ -1,5 +1,18 @@
 # Changelog
 
+## [0.5.0] - 2026-05-02
+
+- feat(core): 增加智能标签分类，覆盖修复、重构、功能开发、测试、文档、规划、Git、构建发布和探索类会话
+- feat(core): 增加价格数据、模型别名和成本估算，支持仅记录 Token 用量的会话展示估算成本
+- feat(codex): 从 token count 事件中解析模型用量
+- feat(web): 增加按项目组织的会话树侧边栏，并支持收藏切换和智能标签筛选
+- feat(web): 会话详情页增加交互式 receipt 摘要
+- feat(web): 使用 Recharts 优化 Dashboard 图表，并替换工具输出高亮实现
+- feat(cli): 增加本地结构化日志、前端 UI 事件日志和性能 benchmark 脚本
+- feat(www): 增加 SEO 元数据、Open Graph/Twitter Card、sitemap、robots.txt 和社交预览图
+- fix(cli): 发布后的 CLI 继续兼容 Node.js 18，运行时文件监听使用 `chokidar` v4
+- test: 增加 live scan store、Kimi 缓存刷新、项目身份、价格估算和文件系统相关测试
+
 ## [0.4.1] - 2026-04-24
 
 - fix(cli): 在发布后的 CLI 包中包含 SQLite 运行时依赖

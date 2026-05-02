@@ -1,5 +1,18 @@
 # Changelog
 
+## [0.5.0] - 2026-05-02
+
+- feat(core): add smart tag classification for bugfixes, refactors, features, tests, docs, planning, git, build, and exploration workflows
+- feat(core): add pricing data, model aliases, and estimated cost calculation when sessions only record token usage
+- feat(codex): parse model usage from token count events
+- feat(web): add a project-aware session tree sidebar with bookmark toggles and smart tag filters
+- feat(web): add an interactive receipt summary to session details
+- feat(web): improve dashboard charts with Recharts and replace the tool output highlighter implementation
+- feat(cli): add structured local logs, client-side UI event logging, and a performance benchmark script
+- feat(www): add SEO metadata, Open Graph/Twitter cards, sitemap, robots.txt, and a social preview image
+- fix(cli): keep the published CLI runtime compatible with Node.js 18 by using `chokidar` v4
+- test: add live scan store, Kimi cache refresh, project identity, pricing, and filesystem coverage
+
 ## [0.4.1] - 2026-04-24
 
 - fix(cli): include SQLite runtime dependency in the published CLI package
