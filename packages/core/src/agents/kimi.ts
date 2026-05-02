@@ -6,6 +6,7 @@ import type { SessionHead, SessionData, Message, MessagePart } from "../types/in
 import { resolveProviderRoots, firstExisting } from "../discovery/paths.js";
 import { parseJsonlLines } from "../utils/jsonl.js";
 import { perf } from "../utils/perf.js";
+import { estimateTokenCost } from "../utils/cost.js";
 
 const KIMI_TOOL_TITLE_MAP: Record<string, string> = {
   ReadFile: "read",
@@ -97,6 +98,7 @@ export class KimiAgent extends BaseAgent {
   private basePath: string | null = null;
   private sessionMetaMap = new Map<string, SessionMeta>();
   private projectMap = new Map<string, string>();
+  private defaultModel: string | null = null;
 
   private findBasePath(): string | null {
     const roots = resolveProviderRoots();
@@ -107,6 +109,11 @@ export class KimiAgent extends BaseAgent {
   private loadKimiConfig(): void {
     const roots = resolveProviderRoots();
     const configPath = join(roots.kimiRoot, "kimi.json");
+    const tomlPath = join(roots.kimiRoot, "config.toml");
+    if (existsSync(tomlPath)) {
+      const configText = readFileSync(tomlPath, "utf-8");
+      this.defaultModel = configText.match(/^default_model\s*=\s*"([^"]+)"/m)?.[1] ?? null;
+    }
     if (!existsSync(configPath)) return;
     try {
       const raw = JSON.parse(readFileSync(configPath, "utf-8")) as Record<string, unknown>;
@@ -452,6 +459,12 @@ export class KimiAgent extends BaseAgent {
               const msg = messages[i]!;
               if (msg.role === "assistant" && !msg.tokens) {
                 msg.tokens = { input: inputTokens, output: outputTokens };
+                msg.model ??= this.defaultModel;
+                const cost = estimateTokenCost(msg.model, msg.tokens);
+                if (cost !== null) {
+                  msg.cost = cost;
+                  msg.cost_source = "estimated";
+                }
                 break;
               }
             }
@@ -764,6 +777,7 @@ export class KimiAgent extends BaseAgent {
   }
 
   private extractStats(sessionDir: string): SessionData["stats"] {
+    let totalCost = 0;
     const stats = {
       total_cost: 0,
       total_input_tokens: 0,
@@ -784,8 +798,15 @@ export class KimiAgent extends BaseAgent {
             | Record<string, unknown>
             | undefined;
           if (!tokenUsage) continue;
-          stats.total_input_tokens += Number(tokenUsage.input_tokens ?? 0);
-          stats.total_output_tokens += Number(tokenUsage.output_tokens ?? 0);
+          const inputTokens = Number(tokenUsage.input_tokens ?? 0);
+          const outputTokens = Number(tokenUsage.output_tokens ?? 0);
+          stats.total_input_tokens += inputTokens;
+          stats.total_output_tokens += outputTokens;
+          const cost = estimateTokenCost(this.defaultModel, {
+            input: inputTokens,
+            output: outputTokens,
+          });
+          if (cost !== null) totalCost += cost;
         } catch {
           // skip
         }
@@ -815,6 +836,11 @@ export class KimiAgent extends BaseAgent {
       // skip
     }
 
+    stats.total_cost = Number(totalCost.toFixed(8));
+    if (stats.total_cost > 0) {
+      stats.cost_source = "estimated";
+    }
+
     return stats;
   }
 
@@ -824,6 +850,11 @@ export class KimiAgent extends BaseAgent {
     stats: SessionData["stats"],
   ): SessionData {
     stats.message_count = messages.length;
+    const totalCost = messages.reduce((sum, message) => sum + (message.cost ?? 0), 0);
+    if (totalCost > 0) {
+      stats.total_cost = Number(totalCost.toFixed(8));
+      stats.cost_source = "estimated";
+    }
     return {
       id: meta.id,
       title: meta.title,

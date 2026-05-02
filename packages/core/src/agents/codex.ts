@@ -14,6 +14,7 @@ import { resolveProviderRoots, firstExisting } from "../discovery/paths.js";
 import { parseJsonlLines } from "../utils/jsonl.js";
 import { resolveSessionTitle, basenameTitle } from "../utils/title-fallback.js";
 import { perf } from "../utils/perf.js";
+import { estimateTokenCost } from "../utils/cost.js";
 
 // ---------------------------------------------------------------------------
 // Constants
@@ -81,6 +82,11 @@ function parseTimestampMs(data: Record<string, unknown>): number {
 
 function extractModelName(raw: unknown): string | null {
   return typeof raw === "string" && raw.trim() ? raw.trim() : null;
+}
+
+function extractCachedInputTokens(usage: Record<string, unknown> | undefined): number {
+  if (!usage) return 0;
+  return Number(usage["cached_input_tokens"] ?? usage["cache_read_input_tokens"] ?? 0);
 }
 
 // ---------------------------------------------------------------------------
@@ -465,6 +471,8 @@ export class CodexAgent extends BaseAgent {
 
     let totalInputTokens = 0;
     let totalOutputTokens = 0;
+    let totalCacheReadTokens = 0;
+    let totalCost = 0;
 
     // Assistant message grouping state
     let currentAssistantIndex: number | null = null;
@@ -477,6 +485,7 @@ export class CodexAgent extends BaseAgent {
     let prevInput = 0;
     let prevOutput = 0;
     let prevReasoning = 0;
+    let prevCachedInput = 0;
 
     for (const record of parseJsonlLines(content)) {
       try {
@@ -523,26 +532,32 @@ export class CodexAgent extends BaseAgent {
               let inputTokens = 0;
               let outputTokens = 0;
               let reasoningTokens = 0;
+              let cacheReadTokens = 0;
 
               if (lastUsage) {
                 inputTokens = Number(lastUsage["input_tokens"] ?? 0);
                 outputTokens = Number(lastUsage["output_tokens"] ?? 0);
                 reasoningTokens = Number(lastUsage["reasoning_output_tokens"] ?? 0);
+                cacheReadTokens = extractCachedInputTokens(lastUsage);
               } else if (cumulativeTotal > 0 && totalUsage) {
                 inputTokens = Number(totalUsage["input_tokens"] ?? 0) - prevInput;
                 outputTokens = Number(totalUsage["output_tokens"] ?? 0) - prevOutput;
                 reasoningTokens =
                   Number(totalUsage["reasoning_output_tokens"] ?? 0) - prevReasoning;
+                cacheReadTokens = extractCachedInputTokens(totalUsage) - prevCachedInput;
 
                 prevInput = Number(totalUsage["input_tokens"] ?? 0);
                 prevOutput = Number(totalUsage["output_tokens"] ?? 0);
                 prevReasoning = Number(totalUsage["reasoning_output_tokens"] ?? 0);
+                prevCachedInput = extractCachedInputTokens(totalUsage);
               }
 
               const totalInput = Math.max(0, inputTokens);
+              const totalCacheRead = Math.max(0, cacheReadTokens);
               if (totalInput || outputTokens || reasoningTokens) {
                 totalInputTokens += totalInput;
                 totalOutputTokens += outputTokens + reasoningTokens;
+                totalCacheReadTokens += totalCacheRead;
 
                 // Bind to the most recent assistant message without tokens
                 for (let i = messages.length - 1; i >= 0; i--) {
@@ -550,8 +565,16 @@ export class CodexAgent extends BaseAgent {
                   if (msg.role === "assistant" && !msg.tokens) {
                     msg.tokens = {
                       input: totalInput,
-                      output: outputTokens + reasoningTokens,
+                      output: outputTokens,
+                      reasoning: reasoningTokens || undefined,
+                      cache_read: totalCacheRead || undefined,
                     };
+                    const cost = estimateTokenCost(msg.model ?? activeModel, msg.tokens);
+                    if (cost !== null) {
+                      msg.cost = cost;
+                      msg.cost_source = "estimated";
+                      totalCost += cost;
+                    }
                     break;
                   }
                 }
@@ -580,7 +603,9 @@ export class CodexAgent extends BaseAgent {
         message_count: messages.length,
         total_input_tokens: totalInputTokens,
         total_output_tokens: totalOutputTokens,
-        total_cost: 0,
+        total_cache_read_tokens: totalCacheReadTokens || undefined,
+        total_cost: totalCost,
+        cost_source: totalCost > 0 ? "estimated" : undefined,
       },
       messages,
     };
@@ -695,11 +720,14 @@ export class CodexAgent extends BaseAgent {
     const modelUsageMap: Record<string, number> = {};
     let totalInputTokens = 0;
     let totalOutputTokens = 0;
+    let totalCacheReadTokens = 0;
+    let totalCost = 0;
 
     let scanPrevCumulativeTotal = 0;
     let scanPrevInput = 0;
     let scanPrevOutput = 0;
     let scanPrevReasoning = 0;
+    let scanPrevCachedInput = 0;
 
     const COUNTED_TYPES = new Set(["message", "function_call", "function_call_output"]);
 
@@ -751,29 +779,42 @@ export class CodexAgent extends BaseAgent {
               let inputTokens = 0;
               let outputTokens = 0;
               let reasoningTokens = 0;
+              let cacheReadTokens = 0;
 
               if (lastUsage) {
                 inputTokens = Number(lastUsage["input_tokens"] ?? 0);
                 outputTokens = Number(lastUsage["output_tokens"] ?? 0);
                 reasoningTokens = Number(lastUsage["reasoning_output_tokens"] ?? 0);
+                cacheReadTokens = extractCachedInputTokens(lastUsage);
               } else if (cumulativeTotal > 0 && totalUsage) {
                 inputTokens = Number(totalUsage["input_tokens"] ?? 0) - scanPrevInput;
                 outputTokens = Number(totalUsage["output_tokens"] ?? 0) - scanPrevOutput;
                 reasoningTokens =
                   Number(totalUsage["reasoning_output_tokens"] ?? 0) - scanPrevReasoning;
+                cacheReadTokens = extractCachedInputTokens(totalUsage) - scanPrevCachedInput;
 
                 scanPrevInput = Number(totalUsage["input_tokens"] ?? 0);
                 scanPrevOutput = Number(totalUsage["output_tokens"] ?? 0);
                 scanPrevReasoning = Number(totalUsage["reasoning_output_tokens"] ?? 0);
+                scanPrevCachedInput = extractCachedInputTokens(totalUsage);
               }
 
               const totalInput = Math.max(0, inputTokens);
+              const totalCacheRead = Math.max(0, cacheReadTokens);
               totalInputTokens += totalInput;
               totalOutputTokens += outputTokens + reasoningTokens;
+              totalCacheReadTokens += totalCacheRead;
               const totalForModel = totalInput + outputTokens + reasoningTokens;
               if (activeModel && totalForModel > 0) {
                 modelUsageMap[activeModel] = (modelUsageMap[activeModel] ?? 0) + totalForModel;
               }
+              const cost = estimateTokenCost(activeModel, {
+                input: totalInput,
+                output: outputTokens,
+                reasoning: reasoningTokens || undefined,
+                cache_read: totalCacheRead || undefined,
+              });
+              if (cost !== null) totalCost += cost;
             }
           }
         }
@@ -795,7 +836,9 @@ export class CodexAgent extends BaseAgent {
         message_count: messageCount,
         total_input_tokens: totalInputTokens,
         total_output_tokens: totalOutputTokens,
-        total_cost: 0,
+        total_cache_read_tokens: totalCacheReadTokens || undefined,
+        total_cost: totalCost,
+        cost_source: totalCost > 0 ? "estimated" : undefined,
       },
       model_usage: Object.keys(modelUsageMap).length > 0 ? modelUsageMap : undefined,
     };

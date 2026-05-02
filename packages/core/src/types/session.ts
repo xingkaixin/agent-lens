@@ -3,10 +3,13 @@ export interface SessionStats {
   total_input_tokens: number;
   total_output_tokens: number;
   total_cost: number;
+  cost_source?: CostSource;
   total_tokens?: number;
   total_cache_read_tokens?: number;
   total_cache_create_tokens?: number;
 }
+
+export type CostSource = "recorded" | "estimated";
 
 export type SmartTag =
   | "bugfix"
@@ -87,6 +90,7 @@ export interface Message {
   provider?: string | null;
   tokens?: MessageTokens;
   cost?: number;
+  cost_source?: CostSource;
   parts: MessagePart[];
   subagent_id?: string;
   nickname?: string;

@@ -1972,7 +1972,7 @@ function MessageItem({
               ) : null}
               {msg.cost ? (
                 <span className="console-mono rounded-sm border border-[var(--console-border)] bg-[var(--console-surface-muted)] px-2 py-1 text-[11px] text-[var(--console-muted)]">
-                  COST ${msg.cost.toFixed(4)}
+                  {msg.cost_source === "estimated" ? "EST COST" : "COST"} ${msg.cost.toFixed(4)}
                 </span>
               ) : null}
             </div>

@@ -6,6 +6,7 @@ import { resolveProviderRoots, firstExisting } from "../discovery/paths.js";
 import { parseJsonlLines } from "../utils/jsonl.js";
 import { resolveSessionTitle, basenameTitle } from "../utils/title-fallback.js";
 import { perf } from "../utils/perf.js";
+import { estimateTokenCost } from "../utils/cost.js";
 import type { AgentScanOptions, SessionCacheMeta, ChangeCheckResult } from "./base.js";
 
 const RECENT_SESSION_REVALIDATION_WINDOW_MS = 24 * 60 * 60 * 1000;
@@ -182,6 +183,7 @@ export class ClaudeCodeAgent extends BaseAgent {
         total_input_tokens: totalInputTokens,
         total_output_tokens: totalOutputTokens,
         total_cost: totalCost,
+        cost_source: totalCost > 0 ? "estimated" : undefined,
         total_cache_read_tokens: totalCacheRead,
         total_cache_create_tokens: totalCacheCreate,
       },
@@ -402,6 +404,7 @@ export class ClaudeCodeAgent extends BaseAgent {
     let totalOutputTokens = 0;
     let totalCacheReadTokens = 0;
     let totalCacheCreateTokens = 0;
+    let totalCost = 0;
     const modelUsageMap: Record<string, number> = {};
 
     for (const line of lines) {
@@ -444,6 +447,13 @@ export class ClaudeCodeAgent extends BaseAgent {
                 const name = m.trim();
                 const msgTotal = inputTokens + cacheRead + cacheCreate + outputTokens;
                 modelUsageMap[name] = (modelUsageMap[name] ?? 0) + msgTotal;
+                const cost = estimateTokenCost(name, {
+                  input: inputTokens + cacheRead + cacheCreate,
+                  output: outputTokens,
+                  cache_read: cacheRead,
+                  cache_create: cacheCreate,
+                });
+                if (cost !== null) totalCost += cost;
               }
             }
           }
@@ -474,7 +484,8 @@ export class ClaudeCodeAgent extends BaseAgent {
         message_count: messageCount,
         total_input_tokens: totalInputTokens,
         total_output_tokens: totalOutputTokens,
-        total_cost: 0,
+        total_cost: totalCost,
+        cost_source: totalCost > 0 ? "estimated" : undefined,
         total_cache_read_tokens: totalCacheReadTokens,
         total_cache_create_tokens: totalCacheCreateTokens,
       },
@@ -740,6 +751,7 @@ export class ClaudeCodeAgent extends BaseAgent {
     provider?: string | null;
     tokens?: Record<string, unknown>;
     cost?: number;
+    cost_source?: Message["cost_source"];
   }): Message {
     return {
       id: opts.messageId,
@@ -751,6 +763,7 @@ export class ClaudeCodeAgent extends BaseAgent {
       provider: opts.provider ?? null,
       tokens: opts.tokens ? (opts.tokens as Message["tokens"]) : undefined,
       cost: opts.cost ?? 0,
+      cost_source: opts.cost_source,
       parts: opts.parts,
     };
   }
@@ -794,6 +807,11 @@ export class ClaudeCodeAgent extends BaseAgent {
         cache_read: cacheRead,
         cache_create: cacheCreate,
       };
+      const cost = estimateTokenCost(message.model, message.tokens);
+      if (cost !== null) {
+        message.cost = cost;
+        message.cost_source = "estimated";
+      }
     }
   }
 

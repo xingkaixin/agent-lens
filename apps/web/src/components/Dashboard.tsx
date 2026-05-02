@@ -36,6 +36,18 @@ function formatCompact(value: number): string {
   return formatNumber(value);
 }
 
+function formatMoney(value: number): string {
+  if (value === 0) return "$0.00";
+  if (value < 0.01) return `$${value.toFixed(4)}`;
+  return `$${value.toFixed(2)}`;
+}
+
+function formatCostSource(source?: "recorded" | "estimated"): string | undefined {
+  if (source === "recorded") return "recorded";
+  if (source === "estimated") return "estimated";
+  return undefined;
+}
+
 function formatRelativeTime(timestamp?: number) {
   if (!timestamp) return "unknown";
   const diff = Date.now() - timestamp;
@@ -588,10 +600,15 @@ export function Dashboard({
 
   return (
     <div data-testid="dashboard" className="mx-auto max-w-5xl space-y-4">
-      <div className="grid gap-3 md:grid-cols-4">
+      <div className="grid gap-3 md:grid-cols-5">
         <StatCard label="Total Sessions" value={formatNumber(totals.sessions)} />
         <StatCard label="Total Messages" value={formatNumber(totals.messages)} />
         <StatCard label="Total Tokens" value={formatCompact(totals.tokens)} />
+        <StatCard
+          label="Total Cost"
+          value={formatMoney(totals.cost)}
+          hint={formatCostSource(totals.cost_source)}
+        />
         <StatCard
           label="Latest Activity"
           value={formatRelativeTime(totals.latestActivity)}

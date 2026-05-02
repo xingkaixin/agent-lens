@@ -202,7 +202,37 @@ describe("CodexAgent cache refresh", () => {
 
     expect(head?.stats.total_input_tokens).toBe(100);
     expect(head?.stats.total_output_tokens).toBe(25);
+    expect(head?.stats.total_cost).toBe(0.00125);
+    expect(head?.stats.cost_source).toBe("estimated");
     expect(head?.model_usage).toEqual({ "gpt-5.5": 125 });
+  });
+
+  it("prices Codex cached input with cache read rates", () => {
+    const tempDir = mkdtempSync(join(tmpdir(), "codesesh-codex-test-"));
+    const sessionFile = join(
+      tempDir,
+      "rollout-2026-04-20T10-00-00-019daaaa-aaaa-7aaa-aaaa-aaaaaaaaaaaa.jsonl",
+    );
+
+    writeFileSync(
+      sessionFile,
+      [
+        '{"timestamp":"2026-04-20T10:00:00Z","type":"session_meta","payload":{"cwd":"/tmp/project","model":"gpt-5.5"}}',
+        '{"timestamp":"2026-04-20T10:01:00Z","type":"event_msg","payload":{"type":"token_count","info":{"last_token_usage":{"input_tokens":1000,"cached_input_tokens":800,"output_tokens":20},"total_token_usage":{"total_tokens":1020}}}}',
+        "",
+      ].join("\n"),
+    );
+
+    const agent = new CodexAgent() as any;
+    agent.sessionIndexCache = new Map();
+
+    const head = agent.parseSessionHead(sessionFile);
+
+    expect(head?.stats.total_input_tokens).toBe(1000);
+    expect(head?.stats.total_cache_read_tokens).toBe(800);
+    expect(head?.stats.total_output_tokens).toBe(20);
+    expect(head?.stats.total_cost).toBe(0.002);
+    expect(head?.model_usage).toEqual({ "gpt-5.5": 1020 });
   });
 
   it("updates model usage when the active Codex model changes", () => {

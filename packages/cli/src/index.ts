@@ -4,7 +4,13 @@ import { LiveScanStore } from "./live-scan.js";
 import { printScanResults } from "./output.js";
 import { VERSION } from "./version.js";
 import { appLogger } from "./logging.js";
-import { createRegisteredAgents, getAgentInfoMap, type ScanOptions, perf } from "@codesesh/core";
+import {
+  createRegisteredAgents,
+  getAgentInfoMap,
+  refreshPricingCache,
+  type ScanOptions,
+  perf,
+} from "@codesesh/core";
 
 function parseDateToTimestamp(dateStr: string): number {
   const date = new Date(dateStr);
@@ -117,6 +123,8 @@ const main = defineCommand({
       appLogger.info("cache.clear");
       console.log("Cache cleared.");
     }
+
+    void refreshPricingCache();
 
     // Parse session URI if provided
     let targetSession: { agent: string; sessionId: string } | null = null;

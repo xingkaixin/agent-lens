@@ -5,6 +5,7 @@ import type { AgentScanOptions, SessionCacheMeta, ChangeCheckResult } from "./ba
 import type { SessionHead, SessionData, Message, MessagePart } from "../types/index.js";
 import { resolveProviderRoots, firstExisting } from "../discovery/paths.js";
 import { openDbReadOnly, isSqliteAvailable, type SQLiteDatabase } from "../utils/sqlite.js";
+import { estimateTokenCost } from "../utils/cost.js";
 
 export class OpenCodeAgent extends BaseAgent {
   readonly name = "opencode";
@@ -89,6 +90,7 @@ export class OpenCodeAgent extends BaseAgent {
             total_input_tokens: stats?.total_input_tokens ?? 0,
             total_output_tokens: stats?.total_output_tokens ?? 0,
             total_cost: stats?.total_cost ?? 0,
+            cost_source: stats?.cost_source,
           },
         });
 
@@ -164,15 +166,22 @@ export class OpenCodeAgent extends BaseAgent {
       let totalCost = 0;
       let totalInputTokens = 0;
       let totalOutputTokens = 0;
+      let hasEstimatedCost = false;
 
       for (const row of rows) {
         const msgData = JSON.parse(String(row.data ?? "{}")) as Record<string, unknown>;
         const cost = Number(msgData.cost ?? 0);
         const tokens = msgData.tokens as Record<string, unknown> | undefined;
+        const inputTokens = Number(tokens?.input ?? 0);
+        const outputTokens = Number(tokens?.output ?? 0);
+        const model = (msgData.modelID as string | null) ?? null;
+        const estimatedCost =
+          cost > 0 ? null : estimateTokenCost(model, { input: inputTokens, output: outputTokens });
 
-        totalCost += cost;
-        totalInputTokens += Number(tokens?.input ?? 0);
-        totalOutputTokens += Number(tokens?.output ?? 0);
+        if (estimatedCost !== null) hasEstimatedCost = true;
+        totalCost += cost || estimatedCost || 0;
+        totalInputTokens += inputTokens;
+        totalOutputTokens += outputTokens;
       }
 
       return {
@@ -180,6 +189,7 @@ export class OpenCodeAgent extends BaseAgent {
         total_input_tokens: totalInputTokens,
         total_output_tokens: totalOutputTokens,
         total_cost: totalCost,
+        cost_source: totalCost > 0 ? (hasEstimatedCost ? "estimated" : "recorded") : undefined,
       };
     } catch {
       return null;
@@ -220,6 +230,7 @@ export class OpenCodeAgent extends BaseAgent {
       let totalCost = 0;
       let totalInputTokens = 0;
       let totalOutputTokens = 0;
+      let hasEstimatedCost = false;
 
       // Get messages
       const msgRows = db
@@ -234,8 +245,13 @@ export class OpenCodeAgent extends BaseAgent {
         const tokens = msgData.tokens as Record<string, unknown> | undefined;
         const inputTokens = Number(tokens?.input ?? 0);
         const outputTokens = Number(tokens?.output ?? 0);
+        const model = (msgData.modelID as string | null) ?? null;
+        const estimatedCost =
+          cost > 0 ? null : estimateTokenCost(model, { input: inputTokens, output: outputTokens });
+        const resolvedCost = cost || estimatedCost || 0;
 
-        totalCost += cost;
+        if (estimatedCost !== null) hasEstimatedCost = true;
+        totalCost += resolvedCost;
         totalInputTokens += inputTokens;
         totalOutputTokens += outputTokens;
 
@@ -272,11 +288,12 @@ export class OpenCodeAgent extends BaseAgent {
           role: String(msgData.role ?? "assistant") as Message["role"],
           agent: (msgData.agent as string | null) ?? null,
           mode: (msgData.mode as string | null) ?? null,
-          model: (msgData.modelID as string | null) ?? null,
+          model,
           provider: (msgData.providerID as string | null) ?? null,
           time_created: Number(msgRow.time_created ?? 0),
           tokens: tokens ? { input: inputTokens, output: outputTokens } : undefined,
-          cost,
+          cost: resolvedCost,
+          cost_source: resolvedCost > 0 ? (cost > 0 ? "recorded" : "estimated") : undefined,
           parts,
         });
       }
@@ -295,6 +312,7 @@ export class OpenCodeAgent extends BaseAgent {
           total_input_tokens: totalInputTokens,
           total_output_tokens: totalOutputTokens,
           total_cost: totalCost,
+          cost_source: totalCost > 0 ? (hasEstimatedCost ? "estimated" : "recorded") : undefined,
         },
         messages,
       };

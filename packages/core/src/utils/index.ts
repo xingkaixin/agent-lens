@@ -3,3 +3,4 @@ export { basenameTitle, resolveSessionTitle, normalizeTitleText } from "./title-
 export { openDb, openDbReadOnly, isSqliteAvailable } from "./sqlite.js";
 export { perf, type PerfMarker } from "./perf.js";
 export { classifySessionTags, getSmartTagSourceTimestamp } from "./smart-tags.js";
+export { estimateTokenCost } from "./cost.js";

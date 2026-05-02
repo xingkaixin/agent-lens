@@ -1,7 +1,7 @@
 import { defineCommand } from "citty";
 import { createServer, getServerStartupErrorMessage } from "../server.js";
 import { printScanResults } from "../output.js";
-import { createRegisteredAgents, type ScanOptions } from "@codesesh/core";
+import { createRegisteredAgents, refreshPricingCache, type ScanOptions } from "@codesesh/core";
 import { LiveScanStore } from "../live-scan.js";
 
 export const serveCommand = defineCommand({
@@ -42,6 +42,7 @@ export const serveCommand = defineCommand({
     const port = parseInt(args.port as string, 10) || 4321;
     const noOpen = args["no-open"] as boolean;
     const jsonOnly = args.json as boolean;
+    void refreshPricingCache();
     const scanOptions: ScanOptions = {
       agents: args.agent
         ? (args.agent as string).split(",").map((agent) => agent.trim())

@@ -230,8 +230,8 @@ export default function App() {
         setAppConfig(config);
         const [agentList, sessionList, dashboardData, bookmarkData] = await Promise.all([
           fetchAgents(),
-          fetchSessions(),
-          fetchDashboard(config.window.days).catch((err) => {
+          fetchSessions({ from: config.window.from, to: config.window.to }),
+          fetchDashboard(config.window).catch((err) => {
             console.error("Failed to load dashboard:", err);
             return null;
           }),
@@ -446,8 +446,8 @@ export default function App() {
     try {
       const [agentList, sessionList, dashboardData, searchData] = await Promise.all([
         fetchAgents(),
-        fetchSessions(),
-        fetchDashboard(appConfig?.window.days).catch((err) => {
+        fetchSessions({ from: appConfig?.window.from, to: appConfig?.window.to }),
+        fetchDashboard(appConfig?.window).catch((err) => {
           console.error("Failed to refresh dashboard:", err);
           return null;
         }),

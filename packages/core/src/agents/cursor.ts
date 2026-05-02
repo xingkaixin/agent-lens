@@ -6,6 +6,7 @@ import type { SessionHead, SessionData, Message, MessagePart } from "../types/in
 import { getCursorDataPath } from "../discovery/paths.js";
 import { openDbReadOnly, isSqliteAvailable, type SQLiteDatabase } from "../utils/sqlite.js";
 import { perf } from "../utils/perf.js";
+import { estimateTokenCost } from "../utils/cost.js";
 
 // ---------------------------------------------------------------------------
 // Cursor data model interfaces
@@ -391,6 +392,11 @@ export class CursorAgent extends BaseAgent {
             Array.isArray(composer.subagentInfos) && composer.subagentInfos.length > 0;
           if (options?.fast) {
             const directory = workspacePathMap.get(composerId) ?? "";
+            const totalCost =
+              estimateTokenCost(composer.modelConfig?.modelName ?? composer.model, {
+                input: composer.inputTokenCount ?? 0,
+                output: composer.outputTokenCount ?? 0,
+              }) ?? 0;
             heads.push({
               id: composerId,
               slug: `cursor/${composerId}`,
@@ -402,7 +408,8 @@ export class CursorAgent extends BaseAgent {
                 message_count: fastMessageCount,
                 total_input_tokens: composer.inputTokenCount ?? 0,
                 total_output_tokens: composer.outputTokenCount ?? 0,
-                total_cost: 0,
+                total_cost: totalCost,
+                cost_source: totalCost > 0 ? "estimated" : undefined,
               },
             });
             this.composerCache.set(composerId, composer);
@@ -432,7 +439,9 @@ export class CursorAgent extends BaseAgent {
           const directory = workspacePathMap.get(composerId) ?? "";
 
           const modelUsageMap: Record<string, number> = {};
+          let totalCost = 0;
           for (const msg of messages) {
+            totalCost += msg.cost ?? 0;
             if (msg.model) {
               const msgTokens = (msg.tokens?.input ?? 0) + (msg.tokens?.output ?? 0);
               if (msgTokens > 0) {
@@ -453,7 +462,8 @@ export class CursorAgent extends BaseAgent {
               message_count: messageCount,
               total_input_tokens: composer.inputTokenCount ?? 0,
               total_output_tokens: composer.outputTokenCount ?? 0,
-              total_cost: 0,
+              total_cost: totalCost,
+              cost_source: totalCost > 0 ? "estimated" : undefined,
             },
             model_usage: hasModelUsage ? modelUsageMap : undefined,
           });
@@ -590,15 +600,24 @@ export class CursorAgent extends BaseAgent {
       // Aggregate stats
       let totalInputTokens = 0;
       let totalOutputTokens = 0;
+      let totalCost = 0;
 
       for (const msg of messages) {
         totalInputTokens += msg.tokens?.input ?? 0;
         totalOutputTokens += msg.tokens?.output ?? 0;
+        totalCost += msg.cost ?? 0;
       }
 
       // Use session-level token counts if per-message counts are zero
       if (totalInputTokens === 0) totalInputTokens = composer.inputTokenCount ?? 0;
       if (totalOutputTokens === 0) totalOutputTokens = composer.outputTokenCount ?? 0;
+      if (totalCost === 0) {
+        totalCost =
+          estimateTokenCost(composer.modelConfig?.modelName ?? composer.model, {
+            input: totalInputTokens,
+            output: totalOutputTokens,
+          }) ?? 0;
+      }
 
       // Append subagent messages
       this.appendSubagentMessages(db, composer, messages);
@@ -621,7 +640,8 @@ export class CursorAgent extends BaseAgent {
           message_count: messages.length,
           total_input_tokens: totalInputTokens,
           total_output_tokens: totalOutputTokens,
-          total_cost: 0,
+          total_cost: totalCost,
+          cost_source: totalCost > 0 ? "estimated" : undefined,
         },
         messages,
       };
@@ -796,6 +816,10 @@ export class CursorAgent extends BaseAgent {
           // Skip empty messages
           if (parts.length === 0) continue;
 
+          const modelName = bubble.modelInfo?.modelName ?? activeModelName;
+          const tokens = { input: inputTokens, output: outputTokens };
+          const cost = estimateTokenCost(modelName, tokens);
+
           messages.push({
             id: `cursor-${composerId}-${bubbleId}`,
             role: role as Message["role"],
@@ -803,10 +827,11 @@ export class CursorAgent extends BaseAgent {
             time_created: timestampMs,
             time_completed: null,
             mode: role === "assistant" && parts.some((p) => p.type === "tool") ? "tool" : null,
-            model: bubble.modelInfo?.modelName ?? activeModelName,
+            model: modelName,
             provider: null,
-            tokens: { input: inputTokens, output: outputTokens },
-            cost: 0,
+            tokens,
+            cost: cost ?? 0,
+            cost_source: cost !== null ? "estimated" : undefined,
             parts,
           });
 

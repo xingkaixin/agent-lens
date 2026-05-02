@@ -14,7 +14,7 @@ import type {
 import { buildProjectGroups, computeIdentity, realFs } from "../projects/index.js";
 import { openDb, type DatabaseRow } from "../utils/sqlite.js";
 
-const CACHE_VERSION = 5;
+const CACHE_VERSION = 6;
 const CACHE_TTL = 7 * 24 * 60 * 60 * 1000;
 const CACHE_FILENAME = "codesesh.db";
 const LEGACY_CACHE_FILENAME = "scan-cache.json";
@@ -242,7 +242,10 @@ function sessionContentHash(session: SessionHead): string {
     session.stats.message_count,
     session.stats.total_input_tokens,
     session.stats.total_output_tokens,
+    session.stats.total_cache_read_tokens ?? 0,
+    session.stats.total_cache_create_tokens ?? 0,
     session.stats.total_cost,
+    session.stats.cost_source ?? "",
     session.stats.total_tokens ?? 0,
   ]);
 }

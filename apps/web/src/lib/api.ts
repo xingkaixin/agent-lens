@@ -16,6 +16,8 @@ export type SmartTag =
   | "exploration"
   | "planning";
 
+export type CostSource = "recorded" | "estimated";
+
 export interface SessionHead {
   id: string;
   slug: string;
@@ -29,6 +31,7 @@ export interface SessionHead {
     total_input_tokens: number;
     total_output_tokens: number;
     total_cost: number;
+    cost_source?: CostSource;
     total_tokens?: number;
   };
   smart_tags?: SmartTag[];
@@ -52,6 +55,8 @@ export interface MessageTokens {
   input?: number;
   output?: number;
   reasoning?: number;
+  cache_read?: number;
+  cache_create?: number;
 }
 
 export interface ToolPartState {
@@ -92,6 +97,7 @@ export interface Message {
   provider?: string | null;
   tokens?: MessageTokens;
   cost?: number;
+  cost_source?: CostSource;
   parts: MessagePart[];
   subagent_id?: string;
   nickname?: string;
@@ -112,6 +118,7 @@ export interface SessionData {
     total_input_tokens: number;
     total_output_tokens: number;
     total_cost: number;
+    cost_source?: CostSource;
     total_tokens?: number;
   };
   messages: Message[];
@@ -172,6 +179,7 @@ export interface DashboardTotals {
   messages: number;
   tokens: number;
   cost: number;
+  cost_source?: CostSource;
   latestActivity?: number;
 }
 
@@ -237,11 +245,15 @@ export async function fetchSessions(
   options: {
     agent?: string;
     projectKey?: string;
+    from?: number;
+    to?: number;
   } = {},
 ): Promise<{ sessions: SessionHead[] }> {
   const params = new URLSearchParams();
   if (options.agent) params.set("agent", options.agent);
   if (options.projectKey) params.set("projectKey", options.projectKey);
+  if (options.from != null) params.set("from", new Date(options.from).toISOString());
+  if (options.to != null) params.set("to", new Date(options.to).toISOString());
   const res = await fetch(`/api/sessions?${params}`);
   if (!res.ok) throw new Error("Failed to fetch sessions");
   return res.json();
@@ -253,9 +265,11 @@ export async function fetchSessionData(agent: string, sessionId: string): Promis
   return res.json();
 }
 
-export async function fetchDashboard(days?: number): Promise<DashboardData> {
+export async function fetchDashboard(window?: AppConfig["window"]): Promise<DashboardData> {
   const params = new URLSearchParams();
-  if (days != null && days > 0) params.set("days", String(days));
+  if (window?.from != null) params.set("from", new Date(window.from).toISOString());
+  if (window?.to != null) params.set("to", new Date(window.to).toISOString());
+  if (window?.days != null && window.days > 0) params.set("days", String(window.days));
   const suffix = params.toString();
   const res = await fetch(suffix ? `/api/dashboard?${suffix}` : "/api/dashboard");
   if (!res.ok) throw new Error("Failed to fetch dashboard");

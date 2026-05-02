@@ -32,6 +32,18 @@ function formatNumber(value: number) {
   return value.toLocaleString("en-US");
 }
 
+function formatMoney(value: number): string {
+  if (value === 0) return "$0.00";
+  if (value < 0.01) return `$${value.toFixed(4)}`;
+  return `$${value.toFixed(2)}`;
+}
+
+function formatCostSource(source?: "recorded" | "estimated"): string | undefined {
+  if (source === "recorded") return "recorded";
+  if (source === "estimated") return "estimated";
+  return undefined;
+}
+
 function getSessionTotalTokens(stats: SessionHead["stats"]) {
   return stats.total_tokens ?? stats.total_input_tokens + stats.total_output_tokens;
 }
@@ -223,6 +235,13 @@ export function DetailLanding({
 
   const totalMessages = sessions.reduce((sum, item) => sum + item.stats.message_count, 0);
   const totalTokens = sessions.reduce((sum, item) => sum + getSessionTotalTokens(item.stats), 0);
+  const totalCost = sessions.reduce((sum, item) => sum + item.stats.total_cost, 0);
+  const costSource =
+    totalCost > 0
+      ? sessions.some((item) => item.stats.cost_source === "estimated")
+        ? "estimated"
+        : "recorded"
+      : undefined;
   const latestUpdatedAt = sortedSessions[0]?.time_updated || sortedSessions[0]?.time_created;
 
   if (type === "missing-agent") {
@@ -362,10 +381,15 @@ export function DetailLanding({
         </div>
       </div>
 
-      <div className="grid gap-3 md:grid-cols-3">
+      <div className="grid gap-3 md:grid-cols-4">
         <LandingCard label="Sessions" value={formatNumber(sessions.length)} />
         <LandingCard label="Messages" value={formatNumber(totalMessages)} />
         <LandingCard label="Tokens" value={formatNumber(totalTokens)} />
+        <LandingCard
+          label="Total Cost"
+          value={formatMoney(totalCost)}
+          hint={formatCostSource(costSource)}
+        />
       </div>
 
       <RecentSessions

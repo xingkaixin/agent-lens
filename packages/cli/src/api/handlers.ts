@@ -428,6 +428,7 @@ export interface DashboardTotals {
   messages: number;
   tokens: number;
   cost: number;
+  cost_source?: "recorded" | "estimated";
   latestActivity?: number;
 }
 
@@ -521,11 +522,13 @@ export function handleGetDashboard(
   let totalMessages = 0;
   let totalTokens = 0;
   let totalCost = 0;
+  let hasEstimatedCost = false;
   let latestActivity = 0;
   for (const session of windowed) {
     totalMessages += session.stats.message_count;
     totalTokens += getTotalTokens(session.stats);
     totalCost += session.stats.total_cost ?? 0;
+    if (session.stats.cost_source === "estimated") hasEstimatedCost = true;
     const activity = getSessionActivityTime(session);
     if (activity > latestActivity) latestActivity = activity;
   }
@@ -619,6 +622,7 @@ export function handleGetDashboard(
       messages: totalMessages,
       tokens: totalTokens,
       cost: totalCost,
+      cost_source: totalCost > 0 ? (hasEstimatedCost ? "estimated" : "recorded") : undefined,
       latestActivity: latestActivity || undefined,
     },
     perAgent,

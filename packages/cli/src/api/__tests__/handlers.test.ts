@@ -315,7 +315,29 @@ describe("handleGetDashboard", () => {
     expect(response.totals.messages).toBe(5);
     expect(response.totals.tokens).toBe(15 + 12);
     expect(response.totals.cost).toBeCloseTo(0.15);
+    expect(response.totals.cost_source).toBe("recorded");
     expect(response.dailyActivity).toHaveLength(30);
+  });
+
+  it("marks dashboard totals as estimated when any session uses estimated cost", () => {
+    const c = makeMockContext();
+    const sessions = [
+      makeSession("a", {
+        time_created: Date.now() - 2 * 86400000,
+        stats: {
+          message_count: 3,
+          total_input_tokens: 10,
+          total_output_tokens: 5,
+          total_cost: 0.1,
+          cost_source: "estimated",
+        },
+      }),
+    ];
+
+    handleGetDashboard(c, makeScanSource({ sessions, byAgent: { claudecode: sessions } }));
+    const response = c.json.mock.calls[0]![0];
+
+    expect(response.totals.cost_source).toBe("estimated");
   });
 
   it("honors custom days query param", () => {
