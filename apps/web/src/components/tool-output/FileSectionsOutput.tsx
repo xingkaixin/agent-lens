@@ -1,5 +1,4 @@
-import { Prism as SyntaxHighlighter } from "react-syntax-highlighter";
-import { oneLight } from "react-syntax-highlighter/dist/esm/styles/prism";
+import { CodeHighlighter } from "./CodeHighlighter";
 import type { FileSectionItem } from "./types";
 import { UnifiedDiffOutput } from "./UnifiedDiffOutput";
 
@@ -24,22 +23,7 @@ function renderSectionContent(section: FileSectionItem) {
 
   return (
     <div className="max-h-[420px] overflow-auto bg-[#fafafa]">
-      <SyntaxHighlighter
-        language={section.language}
-        style={oneLight}
-        customStyle={{
-          margin: 0,
-          padding: "0.75rem",
-          borderRadius: 0,
-          background: "transparent",
-          fontSize: "0.75rem",
-          lineHeight: 1.55,
-        }}
-        codeTagProps={{ className: "console-mono" }}
-        wrapLongLines
-      >
-        {outputText}
-      </SyntaxHighlighter>
+      <CodeHighlighter language={section.language} text={outputText} />
     </div>
   );
 }

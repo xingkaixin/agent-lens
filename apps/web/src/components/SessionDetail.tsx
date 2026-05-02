@@ -1528,7 +1528,7 @@ export function SessionDetail({ session, highlightQuery }: SessionDetailProps) {
             </div>
           )}
         </div>
-        <InteractiveReceipt session={session} toc={toc} />
+        <InteractiveReceipt key={session.id} session={session} toc={toc} />
       </div>
     </div>
   );

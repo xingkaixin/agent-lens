@@ -15,7 +15,6 @@
     "test": "vitest run"
   },
   "dependencies": {
-    "@pierre/diffs": "1.1.19",
     "@pierre/trees": "1.0.0-beta.3",
     "@radix-ui/react-scroll-area": "^1.2.10",
     "@radix-ui/react-separator": "^1.1.8",

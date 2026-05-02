@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef } from "react";
+import { useLayoutEffect, useMemo, useRef } from "react";
 import type { SessionData } from "../lib/api";
 import type { SessionDetailToc } from "./session-detail/toc";
 
@@ -36,6 +36,23 @@ interface Constraint {
   b: number;
   length: number;
   stiffness: number;
+}
+
+interface SheetMetrics {
+  receiptWidth: number;
+  receiptHeight: number;
+  startX: number;
+  startY: number;
+}
+
+function metricsChanged(a: SheetMetrics | null, b: SheetMetrics) {
+  if (!a) return true;
+  return (
+    Math.abs(a.receiptWidth - b.receiptWidth) > 0.5 ||
+    Math.abs(a.receiptHeight - b.receiptHeight) > 0.5 ||
+    Math.abs(a.startX - b.startX) > 0.5 ||
+    Math.abs(a.startY - b.startY) > 0.5
+  );
 }
 
 interface PointerState {
@@ -311,13 +328,10 @@ function particleIndex(row: number, column: number) {
   return row * COLUMNS + column;
 }
 
-function createSheet(width: number, height: number) {
-  const receiptWidth = Math.min(RECEIPT_WIDTH, width - 34);
-  const receiptHeight = Math.min(RECEIPT_HEIGHT, height - 42);
+function createSheet(metrics: SheetMetrics) {
+  const { receiptWidth, receiptHeight, startX, startY } = metrics;
   const spacingX = receiptWidth / (COLUMNS - 1);
   const spacingY = receiptHeight / (ROWS - 1);
-  const startX = (width - receiptWidth) / 2;
-  const startY = 32;
   const particles: Particle[] = [];
   const constraints: Constraint[] = [];
 
@@ -363,6 +377,16 @@ function createSheet(width: number, height: number) {
   }
 
   return { particles, constraints, receiptWidth, receiptHeight };
+}
+
+function setTopRowPins(particles: Particle[], metrics: SheetMetrics) {
+  const spacingX = metrics.receiptWidth / (COLUMNS - 1);
+  for (let column = 0; column < COLUMNS; column += 1) {
+    const particle = particles[column];
+    if (!particle) continue;
+    particle.fixedX = metrics.startX + column * spacingX;
+    particle.fixedY = metrics.startY;
+  }
 }
 
 function pinTopRow(particles: Particle[]) {
@@ -488,11 +512,15 @@ function findGrabTarget(particles: Particle[], x: number, y: number) {
 
 export function InteractiveReceipt({ session, toc }: InteractiveReceiptProps) {
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
+  const anchorRef = useRef<HTMLDivElement | null>(null);
+  const hitSurfaceRef = useRef<HTMLDivElement | null>(null);
   const payload = useMemo(() => createReceiptPayload(session, toc), [session, toc]);
 
-  useEffect(() => {
+  useLayoutEffect(() => {
     const canvas = canvasRef.current;
-    if (!canvas) return;
+    const anchor = anchorRef.current;
+    const hitSurface = hitSurfaceRef.current;
+    if (!canvas || !anchor || !hitSurface) return;
 
     const ctx = canvas.getContext("2d", { alpha: true });
     if (!ctx) return;
@@ -511,23 +539,57 @@ export function InteractiveReceipt({ session, toc }: InteractiveReceiptProps) {
     let animationFrame = 0;
     let width = 0;
     let height = 0;
-    let sheet = createSheet(320, 560);
+    let sheet = createSheet({
+      receiptWidth: RECEIPT_WIDTH,
+      receiptHeight: RECEIPT_HEIGHT,
+      startX: 0,
+      startY: 32,
+    });
     let startedAt = performance.now();
+    let lastMetrics: SheetMetrics | null = null;
+    let stableFrames = 0;
+    let isVisible = false;
+
+    const getSheetMetrics = (): SheetMetrics => {
+      const rect = anchor.getBoundingClientRect();
+      const anchorWidth = Math.max(280, rect.width || 320);
+      const receiptWidth = Math.min(RECEIPT_WIDTH, anchorWidth - 34);
+      const receiptHeight = Math.min(RECEIPT_HEIGHT, Math.max(320, height - rect.top - 42));
+      return {
+        receiptWidth,
+        receiptHeight,
+        startX: rect.left + (rect.width - receiptWidth) / 2,
+        startY: rect.top + 32,
+      };
+    };
+
+    const setVisible = (visible: boolean) => {
+      if (isVisible === visible) return;
+      isVisible = visible;
+      canvas.style.visibility = visible ? "visible" : "hidden";
+      hitSurface.style.visibility = visible ? "visible" : "hidden";
+    };
+
+    const resetSheet = (metrics: SheetMetrics, time = performance.now()) => {
+      sheet = createSheet(metrics);
+      lastMetrics = metrics;
+      startedAt = time;
+    };
 
     const resize = () => {
       const ratio = window.devicePixelRatio || 1;
-      width = Math.max(280, canvas.clientWidth);
-      height = Math.max(460, canvas.clientHeight);
+      width = Math.max(1, window.innerWidth);
+      height = Math.max(1, window.innerHeight);
       canvas.width = Math.floor(width * ratio);
       canvas.height = Math.floor(height * ratio);
       ctx.setTransform(ratio, 0, 0, ratio, 0, 0);
-      sheet = createSheet(width, height);
-      startedAt = performance.now();
+      stableFrames = 0;
+      setVisible(false);
+      resetSheet(getSheetMetrics());
     };
 
     const getPoint = (event: PointerEvent) => {
-      const rect = canvas.getBoundingClientRect();
-      return { x: event.clientX - rect.left, y: event.clientY - rect.top };
+      return { x: event.clientX, y: event.clientY };
     };
 
     const onPointerDown = (event: PointerEvent) => {
@@ -535,7 +597,8 @@ export function InteractiveReceipt({ session, toc }: InteractiveReceiptProps) {
       const point = getPoint(event);
       const target = findGrabTarget(sheet.particles, point.x, point.y);
       if (target == null) return;
-      canvas.setPointerCapture(event.pointerId);
+      event.preventDefault();
+      hitSurface.setPointerCapture(event.pointerId);
       pointer.id = event.pointerId;
       pointer.x = point.x;
       pointer.y = point.y;
@@ -598,6 +661,25 @@ export function InteractiveReceipt({ session, toc }: InteractiveReceiptProps) {
       pinTopRow(sheet.particles);
     };
 
+    const updateHitSurface = () => {
+      let minX = Infinity;
+      let minY = Infinity;
+      let maxX = -Infinity;
+      let maxY = -Infinity;
+
+      for (const particle of sheet.particles) {
+        minX = Math.min(minX, particle.x);
+        minY = Math.min(minY, particle.y);
+        maxX = Math.max(maxX, particle.x);
+        maxY = Math.max(maxY, particle.y);
+      }
+
+      const padding = 20;
+      hitSurface.style.transform = `translate3d(${minX - padding}px, ${minY - padding}px, 0)`;
+      hitSurface.style.width = `${maxX - minX + padding * 2}px`;
+      hitSurface.style.height = `${maxY - minY + padding * 2}px`;
+    };
+
     const drawShadow = () => {
       const first = sheet.particles[0];
       const topRight = sheet.particles[COLUMNS - 1];
@@ -654,40 +736,62 @@ export function InteractiveReceipt({ session, toc }: InteractiveReceiptProps) {
       }
 
       drawRail();
+      updateHitSurface();
     };
 
     const tick = (time: number) => {
+      const metrics = getSheetMetrics();
+      const changed = metricsChanged(lastMetrics, metrics);
+      if (changed && pointer.id == null) {
+        stableFrames = 0;
+        setVisible(false);
+        resetSheet(metrics, time);
+      } else {
+        stableFrames += 1;
+        lastMetrics = metrics;
+      }
+
+      setTopRowPins(sheet.particles, metrics);
       integrate(time);
       constrain();
       draw();
+      if (stableFrames >= 2) setVisible(true);
       animationFrame = window.requestAnimationFrame(tick);
     };
 
+    setVisible(false);
     resize();
     const observer = new ResizeObserver(resize);
-    observer.observe(canvas);
-    canvas.addEventListener("pointerdown", onPointerDown);
-    canvas.addEventListener("pointermove", onPointerMove);
-    canvas.addEventListener("pointerup", releasePointer);
-    canvas.addEventListener("pointercancel", releasePointer);
+    observer.observe(anchor);
+    window.addEventListener("resize", resize);
+    hitSurface.addEventListener("pointerdown", onPointerDown);
+    hitSurface.addEventListener("pointermove", onPointerMove);
+    hitSurface.addEventListener("pointerup", releasePointer);
+    hitSurface.addEventListener("pointercancel", releasePointer);
     animationFrame = window.requestAnimationFrame(tick);
 
     return () => {
       window.cancelAnimationFrame(animationFrame);
       observer.disconnect();
-      canvas.removeEventListener("pointerdown", onPointerDown);
-      canvas.removeEventListener("pointermove", onPointerMove);
-      canvas.removeEventListener("pointerup", releasePointer);
-      canvas.removeEventListener("pointercancel", releasePointer);
+      window.removeEventListener("resize", resize);
+      hitSurface.removeEventListener("pointerdown", onPointerDown);
+      hitSurface.removeEventListener("pointermove", onPointerMove);
+      hitSurface.removeEventListener("pointerup", releasePointer);
+      hitSurface.removeEventListener("pointercancel", releasePointer);
     };
   }, [payload]);
 
   return (
     <aside className="hidden xl:block">
-      <div className="sticky top-4">
+      <div ref={anchorRef} className="sticky top-4 h-[560px]">
         <canvas
           ref={canvasRef}
-          className="block h-[560px] w-full cursor-grab touch-none active:cursor-grabbing"
+          className="invisible pointer-events-none fixed inset-0 z-40 block h-screen w-screen touch-none"
+          aria-hidden="true"
+        />
+        <div
+          ref={hitSurfaceRef}
+          className="invisible fixed left-0 top-0 z-40 cursor-grab touch-none active:cursor-grabbing"
           aria-label="Interactive thermal receipt with Verlet paper simulation"
         />
       </div>

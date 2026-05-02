@@ -1,23 +1,5 @@
-import { lazy, Suspense } from "react";
-
 interface UnifiedDiffOutputProps {
   text: string;
-}
-
-const PatchDiff = lazy(() =>
-  import("@pierre/diffs/react").then((mod) => ({ default: mod.PatchDiff })),
-);
-
-const DIFF_OPTIONS = {
-  diffStyle: "unified",
-  overflow: "wrap",
-  theme: "github-light",
-  disableFileHeader: true,
-  hunkSeparators: "line-info-basic",
-} as const;
-
-function looksLikePatch(text: string) {
-  return /(^|\n)(diff --git |--- |\+\+\+ |@@ )/.test(text);
 }
 
 function getLineKey(line: string, occurrence: number) {
@@ -44,27 +26,6 @@ function getUnifiedDiffLineClassName(line: string) {
 }
 
 export function UnifiedDiffOutput({ text }: UnifiedDiffOutputProps) {
-  if (looksLikePatch(text)) {
-    return (
-      <div className="max-h-[420px] overflow-auto rounded-sm border border-[var(--console-border)] bg-[#fafafa] text-xs">
-        <Suspense
-          fallback={
-            <pre className="console-mono whitespace-pre-wrap p-3 text-xs leading-relaxed text-[var(--console-muted)]">
-              Rendering diff...
-            </pre>
-          }
-        >
-          <PatchDiff
-            patch={text}
-            options={DIFF_OPTIONS}
-            disableWorkerPool
-            style={{ fontSize: "0.75rem", lineHeight: 1.55 }}
-          />
-        </Suspense>
-      </div>
-    );
-  }
-
   const lines = text.split("\n");
   const lineOccurrences = new Map<string, number>();
 
