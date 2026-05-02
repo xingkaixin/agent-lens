@@ -298,6 +298,7 @@ function describeArc(
   r: number,
   startAngle: number,
   endAngle: number,
+  sweep: 0 | 1,
 ): string {
   const start = {
     x: cx + r * Math.cos(startAngle),
@@ -307,8 +308,8 @@ function describeArc(
     x: cx + r * Math.cos(endAngle),
     y: cy + r * Math.sin(endAngle),
   };
-  const largeArc = endAngle - startAngle > Math.PI ? 1 : 0;
-  return `M ${start.x} ${start.y} A ${r} ${r} 0 ${largeArc} 1 ${end.x} ${end.y}`;
+  const largeArc = Math.abs(endAngle - startAngle) > Math.PI ? 1 : 0;
+  return `M ${start.x} ${start.y} A ${r} ${r} 0 ${largeArc} ${sweep} ${end.x} ${end.y}`;
 }
 
 function ModelDistribution({ entries }: { entries: ModelDistributionEntry[] }) {
@@ -386,8 +387,8 @@ function ModelDistribution({ entries }: { entries: ModelDistributionEntry[] }) {
                 );
               }
 
-              const outerPath = describeArc(cx, cy, outerR, arc.startAngle, arc.endAngle);
-              const innerPath = describeArc(cx, cy, innerR, arc.endAngle, arc.startAngle);
+              const outerPath = describeArc(cx, cy, outerR, arc.startAngle, arc.endAngle, 1);
+              const innerPath = describeArc(cx, cy, innerR, arc.endAngle, arc.startAngle, 0);
 
               const outerEnd = {
                 x: cx + outerR * Math.cos(arc.endAngle),

@@ -12,7 +12,6 @@ interface ReceiptPayload {
   id: string;
   title: string;
   agent: string;
-  directory: string;
   updatedAt: number;
   tags?: SessionData["smart_tags"];
   stats: SessionData["stats"];
@@ -92,12 +91,6 @@ function formatDate(value: number) {
   });
 }
 
-function truncateMiddle(value: string, maxLength: number) {
-  if (value.length <= maxLength) return value;
-  const edgeLength = Math.max(4, Math.floor((maxLength - 1) / 2));
-  return `${value.slice(0, edgeLength)}...${value.slice(-edgeLength)}`;
-}
-
 function hashString(value: string) {
   let hash = 2166136261;
   for (let i = 0; i < value.length; i += 1) {
@@ -151,7 +144,6 @@ function createReceiptPayload(session: SessionData, toc: SessionDetailToc): Rece
     id: session.id,
     title: session.title || "Untitled session",
     agent,
-    directory: session.directory,
     updatedAt: session.time_updated ?? session.time_created,
     tags: session.smart_tags,
     stats: session.stats,
@@ -266,20 +258,19 @@ function drawTexture(payload: ReceiptPayload) {
   drawMonoLine(ctx, "Agent", payload.agent, 88, RECEIPT_WIDTH);
   drawMonoLine(ctx, "Updated", formatDate(payload.updatedAt), 104, RECEIPT_WIDTH);
   drawMonoLine(ctx, "Session", `#${payload.id.slice(0, 8)}`, 120, RECEIPT_WIDTH);
-  drawMonoLine(ctx, "Path", truncateMiddle(payload.directory, 24), 136, RECEIPT_WIDTH);
 
   ctx.setLineDash([2, 3]);
   ctx.beginPath();
-  ctx.moveTo(18, 154);
-  ctx.lineTo(RECEIPT_WIDTH - 18, 154);
+  ctx.moveTo(18, 140);
+  ctx.lineTo(RECEIPT_WIDTH - 18, 140);
   ctx.stroke();
   ctx.setLineDash([]);
 
   ctx.font = "700 12px 'Courier New', monospace";
-  ctx.fillText("SESSION TOC RECEIPT LIST", 18, 177);
+  ctx.fillText("SESSION TOC RECEIPT LIST", 18, 163);
   ctx.font = "11px 'Courier New', monospace";
 
-  let y = 199;
+  let y = 185;
   for (const item of payload.items) {
     const count = formatCount(item.count);
     ctx.fillText(fitText(ctx, item.label, 168), 18, y);
