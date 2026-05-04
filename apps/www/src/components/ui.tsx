@@ -66,7 +66,7 @@ const copy = {
     },
     terminal: {
       discovered: "123 sessions discovered",
-      active: "Active: 3/5 agents",
+      active: "Local index ready",
     },
     tour: {
       label: "Product Tour",
@@ -231,7 +231,7 @@ const copy = {
     },
     terminal: {
       discovered: "123 sessions discovered",
-      active: "Active: 3/5 agents",
+      active: "Local index ready",
     },
     tour: {
       label: "Product Tour",
@@ -397,9 +397,16 @@ const agents = [
 ];
 
 function getInitialLocale(): Locale {
-  if (typeof navigator !== "undefined" && navigator.language.toLowerCase().startsWith("zh")) {
-    return "zh";
+  if (typeof navigator !== "undefined") {
+    const languages = navigator.languages.length > 0 ? navigator.languages : [navigator.language];
+
+    for (const language of languages) {
+      const normalized = language.toLowerCase();
+      if (normalized.startsWith("zh")) return "zh";
+      if (normalized.startsWith("en")) return "en";
+    }
   }
+
   return "en";
 }
 
@@ -571,10 +578,10 @@ function TerminalCard({ locale }: { locale: Locale }) {
         <span className="text-[#64748b]"> ╰────────────────────────────────────╯</span>
         {"\n"}
         {"\n"} <span className="text-[#4ade80]">✔</span> Claude Code 91 sessions
-        {"\n"} <span className="text-[#f87171]">✖</span> OpenCode unavailable
-        {"\n"} <span className="text-[#4ade80]">✔</span> Kimi-Cli 2 sessions
+        {"\n"} <span className="text-[#4ade80]">✔</span> Cursor 18 sessions
+        {"\n"} <span className="text-[#4ade80]">✔</span> Kimi 2 sessions
         {"\n"} <span className="text-[#4ade80]">✔</span> Codex 30 sessions
-        {"\n"} <span className="text-[#f87171]">✖</span> Cursor unavailable
+        {"\n"} <span className="text-[#4ade80]">✔</span> OpenCode indexed
         {"\n"}
         {"\n"}
         <span className="text-[#38bdf8]">ℹ {t.active}</span>

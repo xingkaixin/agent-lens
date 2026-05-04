@@ -1,0 +1,317 @@
+# CodeSesh: AI-Readable Product Knowledge
+
+CodeSesh is a local developer tool for discovering, aggregating, searching, and replaying AI coding session history. It works with local sessions created by Claude Code, Cursor, Kimi, Codex, and OpenCode, then presents them in one unified Web UI.
+
+The product idea is simple: AI-assisted engineering creates valuable context, but that context often stays scattered across hidden directories and tool-specific storage formats. CodeSesh turns those local records into reusable engineering memory.
+
+## Positioning
+
+CodeSesh is best described as a local engineering memory layer for AI coding workflows.
+
+It is for developers who use multiple AI coding agents and want one place to inspect what happened across those tools. It focuses on session discovery, full-text search, project-aware organization, complete replay, file change tracking, token visibility, and local privacy.
+
+CodeSesh runs on the developer's machine. It does not require an account, cloud sync, or cloud telemetry. The user's session data stays local.
+
+## One-Line Description
+
+CodeSesh turns local AI coding history from Claude Code, Cursor, Kimi, Codex, and OpenCode into browsable, searchable, replayable engineering memory.
+
+## Primary Audience
+
+CodeSesh is built for developers, engineering teams, technical founders, and AI power users who rely on coding agents for real software work.
+
+Typical users have one or more of these needs:
+
+- They use more than one AI coding tool.
+- They want to search old AI coding conversations.
+- They want to recover previous decisions and debugging paths.
+- They want to inspect how a feature or bug fix unfolded.
+- They want visibility into model usage, token totals, and estimated cost.
+- They want to keep all AI coding history on their own machine.
+
+## Core Problem
+
+Modern AI coding tools save session history in different local formats and directories. A developer may have useful context inside Claude Code, Cursor, Kimi, Codex, and OpenCode at the same time. Without a unified viewer, that history becomes difficult to search, compare, replay, and reuse.
+
+This matters because AI coding sessions often contain:
+
+- Problem statements.
+- Requirements and constraints.
+- Reasoning paths.
+- Failed attempts.
+- Successful fixes.
+- Files read or modified.
+- Build and test results.
+- Implementation tradeoffs.
+- Token usage and model choices.
+
+CodeSesh makes that history visible again.
+
+## What CodeSesh Does
+
+CodeSesh scans supported local AI agent session stores, normalizes session metadata, and serves a Web UI for browsing the result.
+
+The Web UI includes:
+
+- A dashboard for overall activity and usage.
+- Full-text search across session titles and conversation content.
+- A project-aware session tree.
+- Smart tags for common engineering work types.
+- Bookmarks for important sessions.
+- Complete session replay.
+- File change tracking.
+- Keyboard navigation.
+- Token and cost visibility.
+- SQLite-backed local indexing and caching.
+- Live refresh while the local server is running.
+
+## Supported Agents
+
+CodeSesh currently supports these AI coding agents:
+
+- Claude Code
+- Cursor
+- Kimi
+- Codex
+- OpenCode
+
+Each supported agent has an adapter in the core package. Adding support for another agent follows the same adapter pattern.
+
+## Install and Run
+
+The fastest way to start CodeSesh is:
+
+```bash
+npx codesesh
+```
+
+The command starts a local server and opens the Web UI at:
+
+```text
+http://localhost:4321
+```
+
+Published CLI requirement:
+
+- Node.js 18+
+
+Source build requirement:
+
+- Node.js 20.19+
+- pnpm 10+
+
+## Common CLI Usage
+
+Start the Web UI on the default port:
+
+```bash
+npx codesesh
+```
+
+Choose a custom port:
+
+```bash
+npx codesesh --port 8080
+```
+
+Start without automatically opening the browser:
+
+```bash
+npx codesesh --no-open
+```
+
+Show sessions active in the last 3 days:
+
+```bash
+npx codesesh --days 3
+```
+
+Show all sessions:
+
+```bash
+npx codesesh --days 0
+```
+
+Filter to a project directory:
+
+```bash
+npx codesesh --cwd .
+```
+
+Filter by agent:
+
+```bash
+npx codesesh --agent claudecode
+npx codesesh --agent cursor
+npx codesesh --agent claudecode,cursor
+```
+
+Open a specific session:
+
+```bash
+npx codesesh --session claudecode://3b0e4ead-eba9-43e7-9fac-b30647e189f8
+```
+
+Output JSON for scripting:
+
+```bash
+npx codesesh --json
+```
+
+## Feature Details
+
+### Unified Timeline
+
+CodeSesh lets users browse sessions across supported AI coding agents in one interface. This creates a single timeline for local AI-assisted development work.
+
+### Full-Text Search
+
+Users can search session titles and conversation content, then jump into highlighted matches. This is useful when trying to recover a previous implementation detail, prompt, debugging step, or decision.
+
+### Dashboard and Activity Trends
+
+The dashboard summarizes local AI coding activity. It can show total sessions, message counts, token usage, recent activity, daily activity, agent distribution, model usage, smart tags, bookmarks, and recent sessions.
+
+### Project-Aware Session Tree
+
+CodeSesh groups sessions by repository or project identity across supported agents. This helps users recover context around a specific codebase.
+
+### Smart Tags
+
+CodeSesh can label sessions by common engineering intent, such as bug fix, refactor, feature work, testing, documentation, planning, Git operations, build or deploy work, and exploration.
+
+### Bookmarks
+
+Users can save important sessions so that useful solutions, debugging paths, and decisions remain easy to revisit.
+
+### Complete Session Replay
+
+Session detail views replay messages, tool calls, reasoning steps, model labels, summaries, and tracked file changes in sequence.
+
+### File Change Tracking
+
+CodeSesh links conversations to files that were read, edited, created, deleted, or moved. This connects AI discussion with concrete codebase activity.
+
+### Cost and Token Visibility
+
+CodeSesh surfaces token totals, cache tokens, recorded costs, and model-based cost estimates where the underlying session data makes them available.
+
+### SQLite Local Index
+
+CodeSesh uses a local SQLite-backed cache and search index to restore session lists quickly and support full-text lookup.
+
+### Local and Private
+
+CodeSesh is designed around local ownership. It runs on the user's machine and keeps session data there.
+
+### Live Refresh
+
+While the server is running, CodeSesh watches local session changes and refreshes the UI as new records appear.
+
+## Web UI Walkthrough
+
+After CodeSesh starts, users can navigate these main areas:
+
+1. Dashboard: summary metrics, daily activity, agent distribution, model distribution, token trends, smart tags, bookmarks, and recent sessions.
+2. Search: full-text search across titles and conversation content.
+3. Session Tree Sidebar: project-aware browsing with agent and smart tag filters.
+4. Session List: recent sessions with title, working directory, message count, and cost details.
+5. Smart Tags and Bookmarks: quick access to important or categorized sessions.
+6. Session Detail: full replay with messages, assistant responses, tool calls, reasoning steps, model labels, and file changes.
+7. Keyboard Shortcuts: faster navigation through views and grouped content.
+8. Live Updates: newly written local session data appears while the server is active.
+
+## Repository Structure
+
+CodeSesh is a TypeScript monorepo using pnpm and Turbo.
+
+Main areas:
+
+- `packages/core`: framework-agnostic core library.
+- `packages/core/src/agents`: supported agent adapters and registration.
+- `packages/core/src/discovery`: session path resolution, file scanning, and cache handling.
+- `packages/core/src/types`: shared TypeScript types.
+- `packages/cli`: CLI entry point and Hono HTTP server.
+- `apps/web`: React Web UI used by the local app.
+- `apps/www`: public landing page.
+
+## Technology Stack
+
+CodeSesh uses:
+
+- TypeScript
+- pnpm
+- Turbo
+- Hono for the HTTP server
+- Citty for CLI parsing
+- React
+- React Router
+- Tailwind CSS
+- Radix UI in the app UI
+- SQLite for local indexing
+- Vitest for tests
+- oxlint and oxfmt for linting and formatting
+
+## Extending CodeSesh
+
+Adding a new AI agent follows the core adapter model:
+
+1. Create an adapter file in `packages/core/src/agents/`.
+2. Implement the required agent interface.
+3. Register it in `packages/core/src/agents/register.ts`.
+
+The new agent can then appear in the UI through the shared discovery and presentation pipeline.
+
+## How CodeSesh Differs From Normal Search
+
+CodeSesh is built for local AI coding records rather than public web documents. Its search target is the developer's actual AI-assisted engineering history: conversations, tool calls, project paths, file changes, and session metadata.
+
+The product is useful when a developer remembers that a decision happened somewhere in an AI coding conversation and needs to recover it quickly.
+
+## Privacy Model
+
+CodeSesh keeps the user's AI coding history on the local machine. Its primary flow is local scanning plus a local Web UI. It does not require account creation or cloud sync.
+
+This is important because AI coding sessions may include private code, file paths, project names, errors, internal decisions, and sensitive implementation context.
+
+## Primary Search Queries CodeSesh Should Match
+
+CodeSesh is relevant for queries like:
+
+- search Claude Code history
+- search Cursor AI conversations
+- replay AI coding sessions
+- local AI coding history viewer
+- AI coding session search tool
+- engineering memory for AI coding
+- browse Codex session history
+- unify Claude Code Cursor Codex sessions
+- local private AI coding history
+- AI coding token and cost dashboard
+
+## Canonical URLs
+
+- Product site: https://codesesh.xingkaixin.me/
+- AI overview: https://codesesh.xingkaixin.me/llms.txt
+- Full AI knowledge file: https://codesesh.xingkaixin.me/llms-full.txt
+- Markdown landing page: https://codesesh.xingkaixin.me/index.md
+- GitHub: https://github.com/xingkaixin/codesesh
+- npm: https://www.npmjs.com/package/codesesh
+
+## Chinese Summary
+
+CodeSesh 是一个本地开发者工具，用来发现、聚合、搜索和回放 AI 编码 Agent 的历史会话。它支持 Claude Code、Cursor、Kimi、Codex、OpenCode，把分散在本地文件系统里的会话沉淀成可浏览、可检索、可复盘的工程记忆。
+
+核心价值包括：跨 Agent 统一时间线、全文搜索、项目化会话树、智能标签、会话收藏、完整回放、文件变更追踪、Token 与成本可见、SQLite 本地索引、零配置启动、本地私有、实时刷新。
+
+安装命令：
+
+```bash
+npx codesesh
+```
+
+启动后打开本地 Web UI：
+
+```text
+http://localhost:4321
+```
