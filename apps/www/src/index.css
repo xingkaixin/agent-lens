@@ -120,4 +120,43 @@
     word-break: keep-all;
     overflow-wrap: normal;
   }
+
+  .animate-caret-blink {
+    animation: caret-blink 1s step-end infinite;
+  }
+
+  .animate-terminal-line {
+    animation: terminal-line-in 180ms ease-out both;
+  }
+}
+
+@keyframes caret-blink {
+  0%,
+  49% {
+    opacity: 1;
+  }
+
+  50%,
+  100% {
+    opacity: 0;
+  }
+}
+
+@keyframes terminal-line-in {
+  from {
+    opacity: 0;
+    transform: translateY(4px);
+  }
+
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .animate-caret-blink,
+  .animate-terminal-line {
+    animation: none;
+  }
 }

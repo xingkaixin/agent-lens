@@ -42,6 +42,13 @@ interface FeatureGroup {
   items: FeatureItem[];
 }
 
+interface TerminalOutputLine {
+  segments: {
+    text: string;
+    className?: string;
+  }[];
+}
+
 type HeadingCopy = string | string[];
 
 const copy = {
@@ -551,44 +558,133 @@ export function Hero({ locale }: { locale: Locale }) {
 
 function TerminalCard({ locale }: { locale: Locale }) {
   const t = copy[locale].terminal;
+  const command = "$ npx codesesh";
+  const outputLines: TerminalOutputLine[] = [
+    { segments: [{ text: "\u00A0" }] },
+    {
+      segments: [{ text: " ╭─────────────CodeSesh───────────────╮", className: "text-[#64748b]" }],
+    },
+    { segments: [{ text: " │ local session scan", className: "text-[#64748b]" }] },
+    {
+      segments: [
+        { text: " │ ", className: "text-[#64748b]" },
+        { text: `v${__APP_VERSION__} • ${t.discovered}`, className: "text-[#e2e8f0]" },
+      ],
+    },
+    { segments: [{ text: " │ SQLite local index ready", className: "text-[#64748b]" }] },
+    {
+      segments: [{ text: " ╰────────────────────────────────────╯", className: "text-[#64748b]" }],
+    },
+    { segments: [{ text: "\u00A0" }] },
+    {
+      segments: [
+        { text: " ✔", className: "text-[#4ade80]" },
+        { text: " Claude Code 91 sessions" },
+      ],
+    },
+    {
+      segments: [
+        { text: " ✔", className: "text-[#4ade80]" },
+        { text: " Cursor 18 sessions" },
+      ],
+    },
+    {
+      segments: [
+        { text: " ✔", className: "text-[#4ade80]" },
+        { text: " Kimi 2 sessions" },
+      ],
+    },
+    {
+      segments: [
+        { text: " ✔", className: "text-[#4ade80]" },
+        { text: " Codex 30 sessions" },
+      ],
+    },
+    {
+      segments: [
+        { text: " ✔", className: "text-[#4ade80]" },
+        { text: " OpenCode indexed" },
+      ],
+    },
+    { segments: [{ text: "\u00A0" }] },
+    {
+      segments: [
+        { text: "ℹ ", className: "text-[#38bdf8]" },
+        { text: t.active, className: "text-[#38bdf8]" },
+      ],
+    },
+    { segments: [{ text: "\u00A0" }] },
+    { segments: [{ text: " http://localhost:4321", className: "text-[#38bdf8]" }] },
+  ];
+  const [entered, setEntered] = useState(false);
+  const [commandLength, setCommandLength] = useState(0);
+  const [visibleLineCount, setVisibleLineCount] = useState(0);
+
+  useEffect(() => {
+    setEntered(false);
+    setCommandLength(0);
+    setVisibleLineCount(0);
+
+    const prefersReducedMotion =
+      window.matchMedia?.("(prefers-reduced-motion: reduce)").matches ?? false;
+    if (prefersReducedMotion) {
+      setEntered(true);
+      setCommandLength(command.length);
+      setVisibleLineCount(outputLines.length);
+      return;
+    }
+
+    const timers: number[] = [];
+    timers.push(window.setTimeout(() => setEntered(true), 80));
+
+    const typingStart = 360;
+    for (let index = 1; index <= command.length; index += 1) {
+      timers.push(window.setTimeout(() => setCommandLength(index), typingStart + index * 34));
+    }
+
+    const outputStart = typingStart + command.length * 34 + 220;
+    outputLines.forEach((_, index) => {
+      timers.push(window.setTimeout(() => setVisibleLineCount(index + 1), outputStart + index * 115));
+    });
+
+    return () => {
+      timers.forEach(window.clearTimeout);
+    };
+  }, [command.length, locale, outputLines.length]);
 
   return (
-    <div className="rounded-sm border border-[var(--console-border-strong)] bg-[#0f172a] p-5 text-left shadow-[0_24px_80px_rgba(15,23,42,0.18)]">
+    <div
+      className={`min-h-[25rem] rounded-sm border border-[var(--console-border-strong)] bg-[#0f172a] p-4 text-left shadow-[0_24px_80px_rgba(15,23,42,0.18)] transition-all duration-700 ease-out sm:min-h-[29rem] sm:p-5 ${
+        entered ? "translate-y-0 opacity-100" : "translate-y-6 opacity-0"
+      }`}
+    >
       <div className="mb-4 flex items-center gap-2">
         <span className="console-mono inline-block size-2.5 rounded-full bg-[#ef4444]" />
         <span className="console-mono inline-block size-2.5 rounded-full bg-[#eab308]" />
         <span className="console-mono inline-block size-2.5 rounded-full bg-[#22c55e]" />
       </div>
-      <pre className="console-mono overflow-x-auto text-sm leading-relaxed text-[#94a3b8]">
-        <span className="font-semibold text-[#4ade80]">$ npx codesesh</span>
-        {"\n"}
-        {"\n"}
-        <span className="text-[#64748b]"> ╭─────────────CodeSesh───────────────╮</span>
-        {"\n"}
-        <span className="text-[#64748b]"> │ │</span>
-        {"\n"}
-        <span className="text-[#64748b]"> │ </span>
-        <span className="text-[#e2e8f0]">
-          v{__APP_VERSION__} • {t.discovered}
-        </span>
-        <span className="text-[#64748b]"> │</span>
-        {"\n"}
-        <span className="text-[#64748b]"> │ │</span>
-        {"\n"}
-        <span className="text-[#64748b]"> ╰────────────────────────────────────╯</span>
-        {"\n"}
-        {"\n"} <span className="text-[#4ade80]">✔</span> Claude Code 91 sessions
-        {"\n"} <span className="text-[#4ade80]">✔</span> Cursor 18 sessions
-        {"\n"} <span className="text-[#4ade80]">✔</span> Kimi 2 sessions
-        {"\n"} <span className="text-[#4ade80]">✔</span> Codex 30 sessions
-        {"\n"} <span className="text-[#4ade80]">✔</span> OpenCode indexed
-        {"\n"}
-        {"\n"}
-        <span className="text-[#38bdf8]">ℹ {t.active}</span>
-        {"\n"}
-        {"\n"} <span className="text-[#38bdf8]">http://localhost:4321</span>
+      <pre className="console-mono overflow-x-auto text-xs leading-relaxed text-[#94a3b8] sm:text-sm">
+        <span className="font-semibold text-[#4ade80]">{command.slice(0, commandLength)}</span>
+        {commandLength < command.length ? (
+          <span className="ml-0.5 inline-block h-4 w-2 translate-y-0.5 bg-[#4ade80] animate-caret-blink" />
+        ) : null}
+        {outputLines.slice(0, visibleLineCount).map((line, index) => (
+          <TerminalAnimatedLine key={index} line={line} />
+        ))}
       </pre>
     </div>
+  );
+}
+
+function TerminalAnimatedLine({ line }: { line: TerminalOutputLine }) {
+  return (
+    <span className="block animate-terminal-line">
+      {line.segments.map((segment, index) => (
+        <span key={`${segment.text}-${index}`} className={segment.className}>
+          {segment.text}
+        </span>
+      ))}
+    </span>
   );
 }
 
