@@ -1,6 +1,6 @@
 declare const __APP_VERSION__: string;
 
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import {
   BarChart3,
   Bookmark,
@@ -40,6 +40,11 @@ interface FeatureGroup {
   title: string;
   description: string;
   items: FeatureItem[];
+}
+
+interface FAQItem {
+  question: string;
+  answer: string;
 }
 
 interface TerminalOutputLine {
@@ -217,6 +222,33 @@ const copy = {
       title: ["覆盖主流本地", "AI 编码工具"],
       body: "把多 Agent 工作流收束到同一个工程记忆层。",
     },
+    faq: {
+      label: "FAQ",
+      title: ["AI 引用友好的", "产品答案"],
+      body: "这些答案帮助搜索引擎和 AI 系统直接理解 CodeSesh 的定位、安装方式、数据边界和支持范围。",
+      items: [
+        {
+          question: "CodeSesh 是什么？",
+          answer:
+            "CodeSesh 是一个本地开发者工具，用来发现、聚合、搜索和回放 AI 编码会话历史。它把 Claude Code、Cursor、Kimi、Codex 和 OpenCode 的本地记录整理成一个可浏览的工程记忆层，帮助开发者找回历史决策、文件变更和完整协作过程。",
+        },
+        {
+          question: "CodeSesh 支持哪些 AI 编码工具？",
+          answer:
+            "CodeSesh 当前支持 Claude Code、Cursor、Kimi、Codex 和 OpenCode。每个工具通过 core 包里的 Agent 适配器接入，扫描本地会话存储后统一生成会话列表、项目树、搜索索引、标签、Token 统计和会话详情。",
+        },
+        {
+          question: "CodeSesh 会上传本地 AI 会话数据吗？",
+          answer:
+            "CodeSesh 运行在用户自己的机器上，使用本地 SQLite 索引和本地 Web UI 浏览会话历史。会话内容、文件路径、Token 统计和成本估算保留在本机，适合希望保留 AI 编码上下文所有权的开发者。",
+        },
+        {
+          question: "如何安装和启动 CodeSesh？",
+          answer:
+            "最快的启动方式是在终端运行 npx codesesh。CodeSesh 会扫描受支持的本地 AI 编码会话，并在 http://localhost:4321 打开 Web UI。发布版需要 Node.js 18+，源码开发环境使用 Node.js 20.19+ 和 pnpm 10+。",
+        },
+      ],
+    },
   },
   en: {
     meta: {
@@ -393,6 +425,33 @@ const copy = {
       label: "Supported Agents",
       title: "Built for the local AI coding stack",
       body: "Unify multi-agent workflows into one engineering memory layer.",
+    },
+    faq: {
+      label: "FAQ",
+      title: "AI-readable product answers",
+      body: "These answers make CodeSesh easier for search engines and AI systems to extract, cite, and describe accurately.",
+      items: [
+        {
+          question: "What is CodeSesh?",
+          answer:
+            "CodeSesh is a local developer tool for discovering, aggregating, searching, and replaying AI coding session history. It turns local records from Claude Code, Cursor, Kimi, Codex, and OpenCode into a browsable engineering memory layer for recovering decisions, file changes, and complete collaboration paths.",
+        },
+        {
+          question: "Which AI coding tools does CodeSesh support?",
+          answer:
+            "CodeSesh currently supports Claude Code, Cursor, Kimi, Codex, and OpenCode. Each tool connects through an agent adapter in the core package, then contributes sessions to unified lists, project trees, search indexes, smart tags, token statistics, and full replay views.",
+        },
+        {
+          question: "Does CodeSesh upload local AI session data?",
+          answer:
+            "CodeSesh runs on the user's machine and uses a local SQLite index with a local Web UI. Session content, file paths, token statistics, and cost estimates stay on the local computer, which suits developers who want ownership of AI coding context.",
+        },
+        {
+          question: "How do you install and start CodeSesh?",
+          answer:
+            "The fastest way to start CodeSesh is running npx codesesh in a terminal. CodeSesh scans supported local AI coding sessions and opens the Web UI at http://localhost:4321. The published CLI requires Node.js 18+; source development uses Node.js 20.19+ and pnpm 10+.",
+        },
+      ],
     },
   },
 };
@@ -575,63 +634,58 @@ function VersionStatus({ label }: { label: string }) {
 function TerminalCard({ locale }: { locale: Locale }) {
   const t = copy[locale].terminal;
   const command = "$ npx codesesh";
-  const outputLines: TerminalOutputLine[] = [
-    { segments: [{ text: "\u00A0" }] },
-    {
-      segments: [{ text: " ╭─────────────CodeSesh───────────────╮", className: "text-[#64748b]" }],
-    },
-    { segments: [{ text: " │ local session scan", className: "text-[#64748b]" }] },
-    {
-      segments: [
-        { text: " │ ", className: "text-[#64748b]" },
-        { text: `v${__APP_VERSION__} • ${t.discovered}`, className: "text-[#e2e8f0]" },
-      ],
-    },
-    { segments: [{ text: " │ SQLite local index ready", className: "text-[#64748b]" }] },
-    {
-      segments: [{ text: " ╰────────────────────────────────────╯", className: "text-[#64748b]" }],
-    },
-    { segments: [{ text: "\u00A0" }] },
-    {
-      segments: [
-        { text: " ✔", className: "text-[#4ade80]" },
-        { text: " Claude Code 91 sessions" },
-      ],
-    },
-    {
-      segments: [
-        { text: " ✔", className: "text-[#4ade80]" },
-        { text: " Cursor 18 sessions" },
-      ],
-    },
-    {
-      segments: [
-        { text: " ✔", className: "text-[#4ade80]" },
-        { text: " Kimi 2 sessions" },
-      ],
-    },
-    {
-      segments: [
-        { text: " ✔", className: "text-[#4ade80]" },
-        { text: " Codex 30 sessions" },
-      ],
-    },
-    {
-      segments: [
-        { text: " ✔", className: "text-[#4ade80]" },
-        { text: " OpenCode indexed" },
-      ],
-    },
-    { segments: [{ text: "\u00A0" }] },
-    {
-      segments: [
-        { text: "ℹ ", className: "text-[#38bdf8]" },
-        { text: t.active, className: "text-[#38bdf8]" },
-      ],
-    },
-    { segments: [{ text: "\u00A0" }] },
-    { segments: [{ text: " http://localhost:4321", className: "text-[#38bdf8]" }] },
-  ];
+  const outputLines: TerminalOutputLine[] = useMemo(
+    () => [
+      { segments: [{ text: "\u00A0" }] },
+      {
+        segments: [
+          { text: " ╭─────────────CodeSesh───────────────╮", className: "text-[#64748b]" },
+        ],
+      },
+      { segments: [{ text: " │ local session scan", className: "text-[#64748b]" }] },
+      {
+        segments: [
+          { text: " │ ", className: "text-[#64748b]" },
+          { text: `v${__APP_VERSION__} • ${t.discovered}`, className: "text-[#e2e8f0]" },
+        ],
+      },
+      { segments: [{ text: " │ SQLite local index ready", className: "text-[#64748b]" }] },
+      {
+        segments: [
+          { text: " ╰────────────────────────────────────╯", className: "text-[#64748b]" },
+        ],
+      },
+      { segments: [{ text: "\u00A0" }] },
+      {
+        segments: [
+          { text: " ✔", className: "text-[#4ade80]" },
+          { text: " Claude Code 91 sessions" },
+        ],
+      },
+      {
+        segments: [{ text: " ✔", className: "text-[#4ade80]" }, { text: " Cursor 18 sessions" }],
+      },
+      {
+        segments: [{ text: " ✔", className: "text-[#4ade80]" }, { text: " Kimi 2 sessions" }],
+      },
+      {
+        segments: [{ text: " ✔", className: "text-[#4ade80]" }, { text: " Codex 30 sessions" }],
+      },
+      {
+        segments: [{ text: " ✔", className: "text-[#4ade80]" }, { text: " OpenCode indexed" }],
+      },
+      { segments: [{ text: "\u00A0" }] },
+      {
+        segments: [
+          { text: "ℹ ", className: "text-[#38bdf8]" },
+          { text: t.active, className: "text-[#38bdf8]" },
+        ],
+      },
+      { segments: [{ text: "\u00A0" }] },
+      { segments: [{ text: " http://localhost:4321", className: "text-[#38bdf8]" }] },
+    ],
+    [t.active, t.discovered],
+  );
   const [entered, setEntered] = useState(false);
   const [commandLength, setCommandLength] = useState(0);
   const [visibleLineCount, setVisibleLineCount] = useState(0);
@@ -660,13 +714,15 @@ function TerminalCard({ locale }: { locale: Locale }) {
 
     const outputStart = typingStart + command.length * 34 + 220;
     outputLines.forEach((_, index) => {
-      timers.push(window.setTimeout(() => setVisibleLineCount(index + 1), outputStart + index * 115));
+      timers.push(
+        window.setTimeout(() => setVisibleLineCount(index + 1), outputStart + index * 115),
+      );
     });
 
     return () => {
       timers.forEach(window.clearTimeout);
     };
-  }, [command.length, locale, outputLines.length]);
+  }, [command.length, locale, outputLines]);
 
   return (
     <div
@@ -973,6 +1029,38 @@ export function Agents({ locale }: { locale: Locale }) {
             </li>
           ))}
         </ul>
+      </div>
+    </section>
+  );
+}
+
+export function FAQ({ locale }: { locale: Locale }) {
+  const t = copy[locale].faq;
+  const items = t.items as FAQItem[];
+
+  return (
+    <section className="border-t border-[var(--console-border)] px-6 py-20" aria-label={t.label}>
+      <div className="mx-auto grid max-w-6xl gap-10 lg:grid-cols-[0.75fr_1.25fr]">
+        <div>
+          <p className="console-mono text-xs font-bold uppercase tracking-[0.16em] text-[var(--console-muted)]">
+            {t.label}
+          </p>
+          <h2 className="landing-heading mt-4 max-w-lg text-3xl font-semibold leading-tight tracking-tight text-[var(--console-accent-strong)] md:text-4xl">
+            <HeadingText value={t.title} />
+          </h2>
+          <p className="mt-5 max-w-md text-base leading-8 text-[var(--console-muted)]">{t.body}</p>
+        </div>
+
+        <div className="divide-y divide-[var(--console-border)] border-y border-[var(--console-border)]">
+          {items.map((item) => (
+            <article key={item.question} className="py-6">
+              <h3 className="text-lg font-semibold tracking-tight text-[var(--console-text)]">
+                {item.question}
+              </h3>
+              <p className="mt-3 text-sm leading-7 text-[var(--console-muted)]">{item.answer}</p>
+            </article>
+          ))}
+        </div>
       </div>
     </section>
   );

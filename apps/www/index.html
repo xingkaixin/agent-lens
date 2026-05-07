@@ -52,31 +52,108 @@
     <script type="application/ld+json">
       {
         "@context": "https://schema.org",
-        "@type": "SoftwareApplication",
-        "name": "CodeSesh",
-        "applicationCategory": "DeveloperApplication",
-        "operatingSystem": "Windows, macOS, Linux",
-        "description": "CodeSesh turns local AI coding history from Claude Code, Cursor, Kimi, Codex, and OpenCode into browsable, searchable, replayable engineering memory.",
-        "url": "https://codesesh.xingkaixin.me",
-        "offers": {
-          "@type": "Offer",
-          "price": "0",
-          "priceCurrency": "USD"
-        },
-        "featureList": [
-          "Engineering memory overview",
-          "Project-aware session tree",
-          "Smart tags",
-          "Full-text search",
-          "Unified timeline",
-          "Full conversation replay",
-          "File change tracking",
-          "Keyboard navigation",
-          "Live refresh",
-          "Cost and token visibility",
-          "SQLite local index",
-          "Zero configuration",
-          "Local and private"
+        "@graph": [
+          {
+            "@type": "Organization",
+            "@id": "https://codesesh.xingkaixin.me/#organization",
+            "name": "CodeSesh",
+            "url": "https://codesesh.xingkaixin.me",
+            "logo": "https://codesesh.xingkaixin.me/logo.svg",
+            "sameAs": [
+              "https://github.com/xingkaixin/codesesh",
+              "https://www.npmjs.com/package/codesesh"
+            ]
+          },
+          {
+            "@type": "WebSite",
+            "@id": "https://codesesh.xingkaixin.me/#website",
+            "name": "CodeSesh",
+            "url": "https://codesesh.xingkaixin.me",
+            "publisher": {
+              "@id": "https://codesesh.xingkaixin.me/#organization"
+            },
+            "inLanguage": ["en", "zh-CN"]
+          },
+          {
+            "@type": "SoftwareApplication",
+            "@id": "https://codesesh.xingkaixin.me/#software",
+            "name": "CodeSesh",
+            "applicationCategory": "DeveloperApplication",
+            "operatingSystem": "Windows, macOS, Linux",
+            "description": "CodeSesh turns local AI coding history from Claude Code, Cursor, Kimi, Codex, and OpenCode into browsable, searchable, replayable engineering memory.",
+            "url": "https://codesesh.xingkaixin.me",
+            "codeRepository": "https://github.com/xingkaixin/codesesh",
+            "installUrl": "https://www.npmjs.com/package/codesesh",
+            "screenshot": [
+              "https://codesesh.xingkaixin.me/demo/dashboard.png",
+              "https://codesesh.xingkaixin.me/demo/search.png",
+              "https://codesesh.xingkaixin.me/demo/session-detail.png"
+            ],
+            "author": {
+              "@id": "https://codesesh.xingkaixin.me/#organization"
+            },
+            "publisher": {
+              "@id": "https://codesesh.xingkaixin.me/#organization"
+            },
+            "offers": {
+              "@type": "Offer",
+              "price": "0",
+              "priceCurrency": "USD"
+            },
+            "featureList": [
+              "Engineering memory overview",
+              "Project-aware session tree",
+              "Smart tags",
+              "Full-text search",
+              "Unified timeline",
+              "Full conversation replay",
+              "File change tracking",
+              "Keyboard navigation",
+              "Live refresh",
+              "Cost and token visibility",
+              "SQLite local index",
+              "Zero configuration",
+              "Local and private"
+            ]
+          },
+          {
+            "@type": "FAQPage",
+            "@id": "https://codesesh.xingkaixin.me/#faq",
+            "mainEntity": [
+              {
+                "@type": "Question",
+                "name": "What is CodeSesh?",
+                "acceptedAnswer": {
+                  "@type": "Answer",
+                  "text": "CodeSesh is a local developer tool for discovering, aggregating, searching, and replaying AI coding session history. It turns local records from Claude Code, Cursor, Kimi, Codex, and OpenCode into a browsable engineering memory layer for recovering decisions, file changes, and complete collaboration paths."
+                }
+              },
+              {
+                "@type": "Question",
+                "name": "Which AI coding tools does CodeSesh support?",
+                "acceptedAnswer": {
+                  "@type": "Answer",
+                  "text": "CodeSesh currently supports Claude Code, Cursor, Kimi, Codex, and OpenCode. Each tool connects through an agent adapter in the core package, then contributes sessions to unified lists, project trees, search indexes, smart tags, token statistics, and full replay views."
+                }
+              },
+              {
+                "@type": "Question",
+                "name": "Does CodeSesh upload local AI session data?",
+                "acceptedAnswer": {
+                  "@type": "Answer",
+                  "text": "CodeSesh runs on the user's machine and uses a local SQLite index with a local Web UI. Session content, file paths, token statistics, and cost estimates stay on the local computer, which suits developers who want ownership of AI coding context."
+                }
+              },
+              {
+                "@type": "Question",
+                "name": "How do you install and start CodeSesh?",
+                "acceptedAnswer": {
+                  "@type": "Answer",
+                  "text": "The fastest way to start CodeSesh is running npx codesesh in a terminal. CodeSesh scans supported local AI coding sessions and opens the Web UI at http://localhost:4321. The published CLI requires Node.js 18+; source development uses Node.js 20.19+ and pnpm 10+."
+                }
+              }
+            ]
+          }
         ]
       }
     </script>

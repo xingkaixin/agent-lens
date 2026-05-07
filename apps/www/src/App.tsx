@@ -2,6 +2,7 @@ import {
   Agents,
   Features,
   Footer,
+  FAQ,
   Header,
   Hero,
   ProductShowcase,
@@ -19,6 +20,7 @@ export default function App() {
         <ProductShowcase locale={locale} />
         <Features locale={locale} />
         <Agents locale={locale} />
+        <FAQ locale={locale} />
       </main>
       <Footer />
     </div>

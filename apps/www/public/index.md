@@ -74,6 +74,24 @@ CodeSesh reconstructs the full path from problem to result.
 - Codex
 - OpenCode
 
+## FAQ
+
+### What is CodeSesh?
+
+CodeSesh is a local developer tool for discovering, aggregating, searching, and replaying AI coding session history. It turns local records from Claude Code, Cursor, Kimi, Codex, and OpenCode into a browsable engineering memory layer for recovering decisions, file changes, and complete collaboration paths.
+
+### Which AI coding tools does CodeSesh support?
+
+CodeSesh currently supports Claude Code, Cursor, Kimi, Codex, and OpenCode. Each tool connects through an agent adapter in the core package, then contributes sessions to unified lists, project trees, search indexes, smart tags, token statistics, and full replay views.
+
+### Does CodeSesh upload local AI session data?
+
+CodeSesh runs on the user's machine and uses a local SQLite index with a local Web UI. Session content, file paths, token statistics, and cost estimates stay on the local computer, which suits developers who want ownership of AI coding context.
+
+### How do you install and start CodeSesh?
+
+The fastest way to start CodeSesh is running `npx codesesh` in a terminal. CodeSesh scans supported local AI coding sessions and opens the Web UI at `http://localhost:4321`. The published CLI requires Node.js 18+; source development uses Node.js 20.19+ and pnpm 10+.
+
 ## Links
 
 - Product site: https://codesesh.xingkaixin.me/
