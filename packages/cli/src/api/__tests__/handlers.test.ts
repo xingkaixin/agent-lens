@@ -6,6 +6,7 @@ import {
   handleGetProjects,
   handleGetSessions,
   handleGetSessionData,
+  handlePatchSession,
   type ScanResultSource,
 } from "../handlers.js";
 import type { ScanResult, SessionHead, SessionData } from "@codesesh/core";
@@ -35,6 +36,8 @@ function makeMockContext(
   overrides: {
     query?: Record<string, string>;
     param?: Record<string, string>;
+    body?: unknown;
+    bodyError?: boolean;
   } = {},
 ) {
   const jsonFn = vi.fn().mockReturnValue({ status: 200 });
@@ -42,6 +45,10 @@ function makeMockContext(
     req: {
       query: (key: string) => overrides.query?.[key] ?? "",
       param: (key: string) => overrides.param?.[key] ?? "",
+      json: () =>
+        overrides.bodyError
+          ? Promise.reject(new Error("Invalid JSON"))
+          : Promise.resolve(overrides.body),
     },
     json: jsonFn,
   } as any;
@@ -509,5 +516,161 @@ describe("handleGetSessionData", () => {
     const c = makeMockContext({ param: { agent: "claudecode", id: "s1" } });
     await handleGetSessionData(c, makeScanSource({ agents: [agent] }));
     expect(c.json).toHaveBeenCalledWith({ error: "DB not found" }, 500);
+  });
+});
+
+describe("handlePatchSession", () => {
+  function makeRenameAgent(impl?: (id: string, alias: string | null) => SessionHead | null) {
+    const agent = new MockAgent();
+    (agent as any).setSessionAlias =
+      impl ?? ((id: string, alias: string | null) => makeSession(id, { title: alias ?? "" }));
+    return agent;
+  }
+
+  it("rejects unknown agents", async () => {
+    const c = makeMockContext({
+      param: { agent: "unknown", id: "s1" },
+      body: { title: "Foo" },
+    });
+    await handlePatchSession(c, makeScanSource());
+    expect(c.json).toHaveBeenCalledWith({ error: "Unknown agent: unknown" }, 404);
+  });
+
+  it("rejects agents that do not implement setSessionAlias", async () => {
+    const c = makeMockContext({
+      param: { agent: "claudecode", id: "s1" },
+      body: { title: "Foo" },
+    });
+    await handlePatchSession(c, makeScanSource());
+    expect(c.json).toHaveBeenCalledWith(
+      { error: "Agent does not support rename: claudecode" },
+      400,
+    );
+  });
+
+  it("rejects payloads missing the title field", async () => {
+    const agent = makeRenameAgent();
+    const c = makeMockContext({
+      param: { agent: "claudecode", id: "s1" },
+      body: {},
+    });
+    await handlePatchSession(c, makeScanSource({ agents: [agent] }));
+    expect(c.json).toHaveBeenCalledWith({ error: "Missing title in request body" }, 400);
+  });
+
+  it("rejects non-string non-null titles", async () => {
+    const agent = makeRenameAgent();
+    const c = makeMockContext({
+      param: { agent: "claudecode", id: "s1" },
+      body: { title: 42 },
+    });
+    await handlePatchSession(c, makeScanSource({ agents: [agent] }));
+    expect(c.json).toHaveBeenCalledWith({ error: "Title must be a string or null" }, 400);
+  });
+
+  it("returns 404 when agent reports session not found", async () => {
+    const agent = makeRenameAgent(() => null);
+    const c = makeMockContext({
+      param: { agent: "claudecode", id: "missing" },
+      body: { title: "anything" },
+    });
+    await handlePatchSession(c, makeScanSource({ agents: [agent] }));
+    expect(c.json).toHaveBeenCalledWith({ error: "Session not found: missing" }, 404);
+  });
+
+  it("returns updated session and patches the in-memory snapshot", async () => {
+    const calls: Array<[string, string | null]> = [];
+    const agent = makeRenameAgent((id, alias) => {
+      calls.push([id, alias]);
+      return makeSession(id, { title: alias ?? "" });
+    });
+
+    const scanResult = makeScanResult({ agents: [agent] });
+    const scanSource: ScanResultSource = { getSnapshot: () => scanResult };
+
+    const c = makeMockContext({
+      param: { agent: "claudecode", id: "s1" },
+      body: { title: "Renamed" },
+    });
+    await handlePatchSession(c, scanSource);
+
+    expect(calls).toEqual([["s1", "Renamed"]]);
+    const lastCall = (c.json as any).mock.calls.at(-1);
+    expect(lastCall?.[0].session.title).toBe("Renamed");
+    expect(scanResult.byAgent.claudecode?.find((s) => s.id === "s1")?.title).toBe("Renamed");
+    expect(scanResult.sessions.find((s) => s.id === "s1")?.title).toBe("Renamed");
+  });
+
+  it("trims overly long titles to 200 chars before persisting", async () => {
+    const calls: Array<[string, string | null]> = [];
+    const agent = makeRenameAgent((id, alias) => {
+      calls.push([id, alias]);
+      return makeSession(id, { title: alias ?? "" });
+    });
+    const c = makeMockContext({
+      param: { agent: "claudecode", id: "s1" },
+      body: { title: "x".repeat(500) },
+    });
+    await handlePatchSession(c, makeScanSource({ agents: [agent] }));
+    expect(calls[0]?.[1]?.length).toBe(200);
+  });
+
+  it("preserves scanner-enriched fields (project_identity, smart_tags) on rename", async () => {
+    // setSessionAlias() returns a bare SessionHead from parseSessionHead() —
+    // it doesn't carry scanner-enriched fields. handlePatchSession must merge
+    // per-field instead of replacing, otherwise project/tag-filtered endpoints
+    // would temporarily drop or misclassify the renamed session until the
+    // next chokidar-triggered rescan.
+    const enrichedExisting = makeSession("s1", {
+      title: "Old",
+      project_identity: { id: "proj-abc", path_root: "/home/user/project" } as any,
+      smart_tags: [{ tag: "refactor", confidence: 0.9 } as any],
+      smart_tags_source_updated_at: 1700000000,
+    });
+    const agent = makeRenameAgent((id, alias) =>
+      // Bare SessionHead — no project_identity / smart_tags.
+      makeSession(id, { title: alias ?? "" }),
+    );
+
+    const scanResult = makeScanResult({
+      agents: [agent],
+      byAgent: { claudecode: [enrichedExisting] },
+      sessions: [enrichedExisting],
+    });
+    const scanSource: ScanResultSource = { getSnapshot: () => scanResult };
+
+    const c = makeMockContext({
+      param: { agent: "claudecode", id: "s1" },
+      body: { title: "Renamed" },
+    });
+    await handlePatchSession(c, scanSource);
+
+    const inAgent = scanResult.byAgent.claudecode?.find((s) => s.id === "s1");
+    const inFlat = scanResult.sessions.find((s) => s.id === "s1");
+    expect(inAgent?.title).toBe("Renamed");
+    expect(inFlat?.title).toBe("Renamed");
+    // Enriched fields preserved through the merge.
+    expect(inAgent?.project_identity).toEqual({ id: "proj-abc", path_root: "/home/user/project" });
+    expect(inAgent?.smart_tags).toEqual([{ tag: "refactor", confidence: 0.9 }]);
+    expect(inAgent?.smart_tags_source_updated_at).toBe(1700000000);
+    expect(inFlat?.project_identity).toEqual({ id: "proj-abc", path_root: "/home/user/project" });
+
+    // Response body also reflects the merged record (not the bare one).
+    const lastCall = (c.json as any).mock.calls.at(-1);
+    expect(lastCall?.[0].session.smart_tags).toEqual([{ tag: "refactor", confidence: 0.9 }]);
+  });
+
+  it("forwards null titles to clear the alias", async () => {
+    const calls: Array<[string, string | null]> = [];
+    const agent = makeRenameAgent((id, alias) => {
+      calls.push([id, alias]);
+      return makeSession(id, { title: "Default Title" });
+    });
+    const c = makeMockContext({
+      param: { agent: "claudecode", id: "s1" },
+      body: { title: null },
+    });
+    await handlePatchSession(c, makeScanSource({ agents: [agent] }));
+    expect(calls).toEqual([["s1", null]]);
   });
 });
