@@ -107,7 +107,7 @@ export function TimeRangeMenu({ range, onChange, isFallback }: TimeRangeMenuProp
         type="button"
         onClick={() => setOpen((v) => !v)}
         title="Filter sessions, dashboard, and search by activity time"
-        aria-haspopup="menu"
+        aria-haspopup="dialog"
         aria-expanded={open}
         className="console-mono inline-flex items-center gap-1.5 rounded-sm border border-[var(--console-border)] bg-white px-2 py-1 text-xs text-[var(--console-text)] transition-colors hover:bg-[var(--console-surface-muted)]"
       >
@@ -121,17 +121,18 @@ export function TimeRangeMenu({ range, onChange, isFallback }: TimeRangeMenuProp
       </button>
       {open ? (
         <div
-          role="menu"
+          role="dialog"
+          aria-label="Time range filter"
           className="absolute right-0 z-40 mt-1 w-72 rounded-sm border border-[var(--console-border-strong)] bg-white p-3 shadow-lg"
         >
-          <div className="space-y-1">
+          <div role="radiogroup" aria-label="Preset ranges" className="space-y-1">
             {PRESETS.map((option) => {
               const active = rangesEqual(range, option.range);
               return (
                 <button
                   key={option.label}
                   type="button"
-                  role="menuitemradio"
+                  role="radio"
                   aria-checked={active}
                   onClick={() => handlePresetSelect(option)}
                   className={`console-mono flex w-full items-center justify-between rounded-sm border px-2 py-1.5 text-left text-xs transition-colors ${

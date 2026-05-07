@@ -219,35 +219,63 @@ export type TimeRange =
   | { kind: "all" };
 
 /**
+ * End-of-day local timestamp for the same calendar day as `start` — uses
+ * setDate(+1) + setMilliseconds(-1) instead of `start + 86400000 - 1` so DST
+ * transitions don't shift the boundary into the previous/next day.
+ */
+function endOfLocalDay(start: Date): number {
+  const end = new Date(start);
+  end.setDate(end.getDate() + 1);
+  end.setMilliseconds(-1);
+  return end.getTime();
+}
+
+/**
  * Translate a UI-side TimeRange into the `{from?, to?, days?}` window shape
  * already understood by the backend / existing fetch helpers.
  *
- * - `all`     → empty window (no filter)
- * - `yesterday` → `from`=yesterday 00:00 local, `to`=yesterday 23:59:59.999
- * - `preset`  → `days` only (lets the backend resolve from/to itself)
- * - `custom`  → ISO date strings parsed back to numeric ms; `to` rounded to
- *               end-of-day so the inclusive UI range maps to the inclusive
- *               backend window
+ * Semantics chosen so the dropdown drives every endpoint coherently:
+ *
+ * - `all`        → from = 0 (epoch), to = now. Explicit wide window so the
+ *                  dashboard handler doesn't fall back to its 30-day default
+ *                  and the agents/sessions/search handlers also see "no
+ *                  effective filter". An empty `{}` would let CLI defaults
+ *                  re-assert themselves and contradict the "All time" label.
+ * - `yesterday`  → from = yesterday 00:00 local, to = yesterday 23:59:59.999
+ *                  via end-of-local-day (DST-safe).
+ * - `preset(N)`  → returns `days: N` AND a concrete `from`/`to`. Dashboard
+ *                  prefers `days` for its daily-bucket layout; sessions /
+ *                  agents / search handlers don't read `days` so they need
+ *                  the explicit from/to. Sending all three keeps every
+ *                  endpoint consistent with the dropdown selection.
+ * - `custom`     → ISO date strings → from/to in local time, with `to`
+ *                  rounded to end-of-local-day for inclusive semantics.
  */
 export function windowFromTimeRange(range: TimeRange | null | undefined): AppConfig["window"] {
   if (!range) return {};
-  if (range.kind === "all") return {};
-  if (range.kind === "preset") return { days: range.days };
+  const now = Date.now();
+  if (range.kind === "all") {
+    return { from: 0, to: now };
+  }
+  if (range.kind === "preset") {
+    const startOfToday = new Date();
+    startOfToday.setHours(0, 0, 0, 0);
+    const fromTs = startOfToday.getTime() - (range.days - 1) * 86400000;
+    return { days: range.days, from: fromTs, to: now };
+  }
   if (range.kind === "yesterday") {
     const start = new Date();
     start.setHours(0, 0, 0, 0);
     start.setDate(start.getDate() - 1);
-    const fromTs = start.getTime();
-    const toTs = fromTs + 86400000 - 1;
-    return { from: fromTs, to: toTs };
+    return { from: start.getTime(), to: endOfLocalDay(start) };
   }
   // custom: ISO date strings, possibly with `to` omitted → leave `to` open.
-  const fromTs = new Date(`${range.from}T00:00:00`).getTime();
-  if (!Number.isFinite(fromTs)) return {};
-  const window: AppConfig["window"] = { from: fromTs };
+  const fromDate = new Date(`${range.from}T00:00:00`);
+  if (!Number.isFinite(fromDate.getTime())) return {};
+  const window: AppConfig["window"] = { from: fromDate.getTime() };
   if (range.to) {
-    const toTs = new Date(`${range.to}T23:59:59.999`).getTime();
-    if (Number.isFinite(toTs)) window.to = toTs;
+    const toDate = new Date(`${range.to}T00:00:00`);
+    if (Number.isFinite(toDate.getTime())) window.to = endOfLocalDay(toDate);
   }
   return window;
 }

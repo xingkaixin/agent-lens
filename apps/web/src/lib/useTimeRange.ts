@@ -5,9 +5,22 @@ import type { AppConfig, TimeRange } from "./api";
 const PRESET_DAYS = new Set([1, 3, 7, 14, 30, 90]);
 
 export function isValidIsoDate(value: string): boolean {
-  if (!/^\d{4}-\d{2}-\d{2}$/.test(value)) return false;
-  const ts = new Date(value).getTime();
-  return !Number.isNaN(ts);
+  const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(value);
+  if (!m) return false;
+  // Round-trip check: JS silently normalizes 2026-02-31 → 2026-03-03 etc., so
+  // a malformed URL like ?from=2026-02-31 would otherwise pass and query the
+  // wrong calendar day. Reject any string whose parsed components don't
+  // round-trip back to themselves.
+  const year = Number(m[1]);
+  const month = Number(m[2]);
+  const day = Number(m[3]);
+  const d = new Date(year, month - 1, day);
+  return (
+    !Number.isNaN(d.getTime()) &&
+    d.getFullYear() === year &&
+    d.getMonth() === month - 1 &&
+    d.getDate() === day
+  );
 }
 
 export function parseRangeParam(value: string | null): TimeRange | null {
