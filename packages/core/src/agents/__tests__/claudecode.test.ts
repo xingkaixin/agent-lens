@@ -1,4 +1,4 @@
-import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { mkdirSync, mkdtempSync, readFileSync, rmSync, utimesSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
@@ -266,12 +266,60 @@ describe("ClaudeCodeAgent session alias (cc-native custom-title upsert)", () => 
 
     expect(head?.title).toBe("My Custom Title");
     const records = readJsonl();
+    // The prepended row carries a timestamp copied from the file's first
+    // existing record so parseSessionHead's time_created derivation doesn't
+    // fall back to file mtime (which would re-anchor on every rename).
     expect(records[0]).toEqual({
       type: "custom-title",
       customTitle: "My Custom Title",
       sessionId,
+      timestamp: "2026-04-25T00:00:00.000Z",
     });
     expect(records).toHaveLength(2);
+  });
+
+  it("preserves time_created across renames (no mtime drift)", () => {
+    // Regression for the case where a freshly-prepended custom-title row had
+    // no timestamp, causing parseSessionHead() to fall back to file mtime and
+    // silently drift the session's creation time forward on every rename.
+    const originalTs = "2026-03-01T00:00:00.000Z";
+    writeFileSync(
+      sessionFile,
+      [
+        JSON.stringify({
+          parentUuid: null,
+          type: "user",
+          message: { role: "user", content: "first prompt" },
+          timestamp: originalTs,
+          sessionId,
+        }),
+      ].join("\n") + "\n",
+      "utf-8",
+    );
+
+    const { agent } = buildAgent();
+    // Force-set mtime far in the future so any mtime-fallback would be
+    // immediately visible as drift.
+    const futureMs = Date.parse("2099-01-01T00:00:00.000Z");
+    utimesSync(sessionFile, futureMs / 1000, futureMs / 1000);
+
+    const expectedMs = Date.parse(originalTs);
+
+    const firstHead = agent.setSessionAlias(sessionId, "First name");
+    expect(firstHead?.time_created).toBe(expectedMs);
+
+    // Re-rename: the first row is now our custom-title; the replace path must
+    // also preserve a timestamp so time_created still comes from the original
+    // user record, not from the (refreshed) file mtime.
+    utimesSync(sessionFile, futureMs / 1000 + 100, futureMs / 1000 + 100);
+    const secondHead = agent.setSessionAlias(sessionId, "Second name");
+    expect(secondHead?.time_created).toBe(expectedMs);
+
+    // Clearing falls back through the precedence chain — the first user row
+    // re-becomes lines[0], so its own timestamp drives time_created. Either
+    // way, no mtime drift.
+    const clearedHead = agent.setSessionAlias(sessionId, null);
+    expect(clearedHead?.time_created).toBe(expectedMs);
   });
 
   it("collapses cc's append-on-resume duplicates into a single fresh row", () => {

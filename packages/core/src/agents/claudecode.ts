@@ -252,20 +252,51 @@ export class ClaudeCodeAgent extends BaseAgent {
       }
     }
 
-    let mutated = false;
-    if (desired !== null) {
-      const newLine = JSON.stringify({
+    // Find a timestamp from the existing file to preserve when our row would
+    // become the file's first record. parseSessionHead() derives time_created
+    // from lines[0]'s timestamp and falls back to file mtime when missing —
+    // without this, a newly-prepended custom-title row would re-anchor the
+    // session's creation time to "now" on every rename and continue drifting
+    // with future writes. `skipIdx` lets us ignore an existing custom-title
+    // at row 0 (which itself may already lack a timestamp) when scanning.
+    const findFallbackTimestamp = (skipIdx: number): string | undefined => {
+      for (let i = 0; i < dataLines.length; i++) {
+        if (i === skipIdx) continue;
+        const candidate = dataLines[i];
+        if (!candidate || !candidate.trim()) continue;
+        try {
+          const parsed = JSON.parse(candidate);
+          const ts = parsed?.timestamp;
+          if (typeof ts === "string" && ts) return ts;
+        } catch {
+          // ignore
+        }
+      }
+      return undefined;
+    };
+    const buildCustomTitleRow = (preservedTimestamp?: string): string => {
+      const row: Record<string, unknown> = {
         type: CUSTOM_TITLE_TYPE,
         customTitle: desired,
         sessionId,
-      });
+      };
+      if (preservedTimestamp) row.timestamp = preservedTimestamp;
+      return JSON.stringify(row);
+    };
+
+    let mutated = false;
+    if (desired !== null) {
       if (customTitleIndices.length === 0) {
+        const newLine = buildCustomTitleRow(findFallbackTimestamp(-1));
         dataLines.unshift(newLine);
         mutated = true;
       } else {
         // Replace the first occurrence in place, drop the rest. Iterate from
         // the tail so splice indices stay valid.
         const [firstIdx, ...rest] = customTitleIndices;
+        const preserved =
+          firstIdx === 0 ? findFallbackTimestamp(0) : undefined;
+        const newLine = buildCustomTitleRow(preserved);
         if (dataLines[firstIdx!] !== newLine) {
           dataLines[firstIdx!] = newLine;
           mutated = true;

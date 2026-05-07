@@ -615,6 +615,51 @@ describe("handlePatchSession", () => {
     expect(calls[0]?.[1]?.length).toBe(200);
   });
 
+  it("preserves scanner-enriched fields (project_identity, smart_tags) on rename", async () => {
+    // setSessionAlias() returns a bare SessionHead from parseSessionHead() —
+    // it doesn't carry scanner-enriched fields. handlePatchSession must merge
+    // per-field instead of replacing, otherwise project/tag-filtered endpoints
+    // would temporarily drop or misclassify the renamed session until the
+    // next chokidar-triggered rescan.
+    const enrichedExisting = makeSession("s1", {
+      title: "Old",
+      project_identity: { id: "proj-abc", path_root: "/home/user/project" } as any,
+      smart_tags: [{ tag: "refactor", confidence: 0.9 } as any],
+      smart_tags_source_updated_at: 1700000000,
+    });
+    const agent = makeRenameAgent((id, alias) =>
+      // Bare SessionHead — no project_identity / smart_tags.
+      makeSession(id, { title: alias ?? "" }),
+    );
+
+    const scanResult = makeScanResult({
+      agents: [agent],
+      byAgent: { claudecode: [enrichedExisting] },
+      sessions: [enrichedExisting],
+    });
+    const scanSource: ScanResultSource = { getSnapshot: () => scanResult };
+
+    const c = makeMockContext({
+      param: { agent: "claudecode", id: "s1" },
+      body: { title: "Renamed" },
+    });
+    await handlePatchSession(c, scanSource);
+
+    const inAgent = scanResult.byAgent.claudecode?.find((s) => s.id === "s1");
+    const inFlat = scanResult.sessions.find((s) => s.id === "s1");
+    expect(inAgent?.title).toBe("Renamed");
+    expect(inFlat?.title).toBe("Renamed");
+    // Enriched fields preserved through the merge.
+    expect(inAgent?.project_identity).toEqual({ id: "proj-abc", path_root: "/home/user/project" });
+    expect(inAgent?.smart_tags).toEqual([{ tag: "refactor", confidence: 0.9 }]);
+    expect(inAgent?.smart_tags_source_updated_at).toBe(1700000000);
+    expect(inFlat?.project_identity).toEqual({ id: "proj-abc", path_root: "/home/user/project" });
+
+    // Response body also reflects the merged record (not the bare one).
+    const lastCall = (c.json as any).mock.calls.at(-1);
+    expect(lastCall?.[0].session.smart_tags).toEqual([{ tag: "refactor", confidence: 0.9 }]);
+  });
+
   it("forwards null titles to clear the alias", async () => {
     const calls: Array<[string, string | null]> = [];
     const agent = makeRenameAgent((id, alias) => {

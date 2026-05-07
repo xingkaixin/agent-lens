@@ -373,15 +373,30 @@ export async function handlePatchSession(c: Context, scanSource: ScanResultSourc
 
   // Eagerly patch the in-memory snapshot so subsequent GETs see the new title
   // before chokidar's debounced refresh fires.
+  //
+  // setSessionAlias() returns a bare SessionHead from parseSessionHead() that
+  // does not carry scanner-enriched fields (project_identity, smart_tags,
+  // smart_tags_source_updated_at). Merge per-field instead of replacing so
+  // those fields survive a rename until the next chokidar-triggered rescan —
+  // otherwise project/tag-filtered endpoints would temporarily drop or
+  // misclassify the renamed session.
+  const mergeRename = (existing: SessionHead): SessionHead => ({
+    ...updated,
+    project_identity: updated.project_identity ?? existing.project_identity,
+    smart_tags: updated.smart_tags ?? existing.smart_tags,
+    smart_tags_source_updated_at:
+      updated.smart_tags_source_updated_at ?? existing.smart_tags_source_updated_at,
+  });
+
   const agentSessions = scanResult.byAgent[agentName];
   if (agentSessions) {
     const idx = agentSessions.findIndex((session) => session.id === sessionId);
-    if (idx >= 0) agentSessions[idx] = updated;
+    if (idx >= 0) agentSessions[idx] = mergeRename(agentSessions[idx]!);
   }
   const flatIdx = scanResult.sessions.findIndex((session) => session.id === sessionId);
-  if (flatIdx >= 0) scanResult.sessions[flatIdx] = updated;
+  if (flatIdx >= 0) scanResult.sessions[flatIdx] = mergeRename(scanResult.sessions[flatIdx]!);
 
-  return c.json({ session: updated });
+  return c.json({ session: agentSessions?.find((s) => s.id === sessionId) ?? updated });
 }
 
 export function handleGetBookmarks(c: Context) {
